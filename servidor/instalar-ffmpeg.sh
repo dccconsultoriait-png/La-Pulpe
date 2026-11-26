@@ -26,7 +26,7 @@ cd "$DIR"
 if [ -f "$OVR" ] && ! grep -q "n8n-ffmpeg" "$OVR"; then
   echo "ERROR: ya existe un $OVR que no es nuestro. Avisale a Claude antes de seguir."; exit 1
 fi
-VER=$(docker compose exec -T "$SVC" n8n --version | tr -d '\r' | tail -1)
+VER=$(docker compose exec -T "$SVC" n8n --version </dev/null | tr -d '\r' | tail -1)
 echo "Versión de n8n: $VER"
 cat > Dockerfile.ffmpeg <<DOCKER
 FROM mwader/static-ffmpeg:6.0 AS ffmpeg-source
@@ -37,7 +37,7 @@ COPY --from=ffmpeg-source /ffprobe /usr/local/bin/ffprobe
 USER node
 DOCKER
 echo "Armando n8n con FFmpeg (tarda 1 o 2 minutos)..."
-docker build -q -t "n8n-ffmpeg:$VER" -f Dockerfile.ffmpeg .
+docker build -q </dev/null -t "n8n-ffmpeg:$VER" -f Dockerfile.ffmpeg .
 cat > "$OVR" <<YAML
 # Agregado para Multiredes: n8n con FFmpeg y el nodo Execute Command habilitado.
 services:
@@ -48,9 +48,9 @@ services:
       - N8N_RESTRICT_FILE_ACCESS_TO=/home/node/.n8n-files
 YAML
 echo "Reiniciando n8n..."
-docker compose up -d
+docker compose up -d </dev/null
 sleep 20
-if docker compose exec -T "$SVC" ffmpeg -version >/dev/null 2>&1; then
+if docker compose exec -T "$SVC" ffmpeg -version </dev/null >/dev/null 2>&1; then
   echo ""
   echo "LISTO: FFmpeg instalado y n8n reiniciado. Ya podés volver a n8n."
   echo "(Para deshacerlo: cd $DIR && rm $OVR && docker compose up -d)"
