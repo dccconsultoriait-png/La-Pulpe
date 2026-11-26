@@ -12,7 +12,7 @@ Los nodos de edición (los que muestran un "?") necesitan FFmpeg y el nodo Execu
 3. Esperá a que diga **LISTO** (2 o 3 minutos). Si dice ERROR, mandá una captura.
 4. Volvé a n8n y recargá la página: los "?" tienen que desaparecer.
 
-Para deshacerlo: `cd /docker/n8n && rm docker-compose.override.yml && docker compose up -d`.
+Para deshacerlo, al final el script muestra el comando exacto.
 
 ## 1. Conectar n8n con Supabase (una sola vez)
 
