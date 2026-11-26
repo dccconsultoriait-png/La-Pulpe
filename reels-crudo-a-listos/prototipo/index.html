@@ -32,7 +32,7 @@ header.band{background:var(--pet);color:#fff;padding-bottom:clamp(36px,5vw,72px)
 .tabs button{font:600 13px Inter,sans-serif;background:none;border:0;padding:12px 4px;min-height:52px;color:#5a707a;cursor:pointer;position:relative}
 .tabs button[aria-selected=true]{color:var(--pet)}
 .tabs button[aria-selected=true]::after{content:"";position:absolute;left:30%;right:30%;top:0;height:3px;border-radius:0 0 3px 3px;background:var(--pet)}
-.tabs .badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--coral);color:#fff;font-size:11px;margin-left:4px}
+.tabs .badge[hidden]{display:none}.tabs .badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--coral);color:#fff;font-size:11px;margin-left:4px}
 .view{flex:1;overflow-y:auto;padding:16px 18px}
 .view[hidden]{display:none}
 .drop{border:2px dashed #9fc0cb;border-radius:20px;padding:26px 16px;text-align:center;background:#f3f8f9}
@@ -58,9 +58,10 @@ input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
 .reel{border:1px solid #e3ecef;border-radius:18px;overflow:hidden;margin-bottom:16px}
 .frame{position:relative;aspect-ratio:9/16;max-height:340px;margin:0 auto;background:linear-gradient(160deg,#7fc4d6,#0E4459);overflow:hidden}
 .frame video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.frame .ttl{position:absolute;top:8%;left:8%;right:8%;text-align:center;font:800 19px/1.15 Manrope,sans-serif;color:#0B1630;background:#fff;padding:8px 10px;border-radius:10px}
+.frame .ttl{position:absolute;top:24%;left:8%;right:8%;text-align:center;font:800 19px/1.15 Manrope,sans-serif;color:#0B1630;background:#fff;padding:8px 10px;border-radius:10px}
 .frame .sub{position:absolute;bottom:14%;left:8%;right:8%;text-align:center;font:800 17px/1.25 Manrope,sans-serif;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.7)}
 .frame .sub em{font-style:normal;color:#FFD84E}
+.frame .lg{position:absolute;top:11%;right:5%;width:19%;border-radius:4px;opacity:.9}
 .frame .fig{position:absolute;left:50%;bottom:0;width:58%;height:62%;transform:translateX(-50%)}
 .rb{padding:12px 14px}
 .cap{font-size:14px;background:#f3f8f9;border-radius:12px;padding:10px 12px;white-space:pre-line;margin:8px 0}
@@ -100,7 +101,7 @@ footer{padding:24px max(5vw,16px);font-size:13px;color:var(--mut);text-align:cen
     <div class="hero">
       <div class="phone">
         <div class="scr">
-          <div class="top"><b>Mis reels</b><span>La Pulpe</span></div>
+          <div class="top"><b>Mis reels</b><img src="../marca/lapulpe.png" alt="La Pulpe" width="44" height="43" style="border-radius:6px"></div>
           <section class="view" id="v-crudo" role="tabpanel" aria-labelledby="t-crudo">
             <div class="drop">
               <h3>Subí tu video crudo</h3>
@@ -222,9 +223,9 @@ function addReady(n,vid){
   if(!ready)$('ready').innerHTML='';
   ready++;badge('b-listos',ready);
   const i=n%3,t=titles[i];
-  const text=t+'\n\nEn pie desde 1878 en Los Hornos. Te esperamos el domingo al mediodía. Etiquetá a quien te debe un almuerzo.\n\n#LaPulpe #pulperia #comidacasera #LosHornos';
+  const text=t+'\n\nEn pie desde 1878 en Los Hornos. Te esperamos el domingo al mediodía. Etiquetá a quien te debe un almuerzo.\n\n📞 Reservas: 11 6683-2645\n📍 Av. 161 esq. Av. 78, Los Hornos, La Plata\n🕛 Domingos al mediodía\n\n#LaPulpe #pulperia #comidacasera #LosHornos';
   const r=document.createElement('div');r.className='reel';
-  r.innerHTML='<div class="frame">'+(vid?'<video muted playsinline loop autoplay></video>':'<svg class="fig" viewBox="0 0 100 120" aria-hidden="true"><circle cx="50" cy="34" r="20" fill="#e9b99a"/><path d="M14 120c0-30 16-52 36-52s36 22 36 52z" fill="#fff"/><path d="M30 120V84h40v36z" fill="#FF5A4E"/></svg>')+'<div class="ttl"></div><div class="sub">'+subs[i]+'</div></div>'+
+  r.innerHTML='<div class="frame">'+(vid?'<video muted playsinline loop autoplay></video>':'<svg class="fig" viewBox="0 0 100 120" aria-hidden="true"><circle cx="50" cy="34" r="20" fill="#e9b99a"/><path d="M14 120c0-30 16-52 36-52s36 22 36 52z" fill="#fff"/><path d="M30 120V84h40v36z" fill="#FF5A4E"/></svg>')+'<img class="lg" src="../marca/lapulpe.png" alt=""><div class="ttl"></div><div class="sub">'+subs[i]+'</div></div>'+
   '<div class="rb"><b>Reel '+(n+1)+' · 0:42</b><div class="cap"></div><div class="row"><button class="btn p" data-a="copy">Copiar texto</button><button class="btn g" data-a="dl">Descargar</button></div><div class="row" style="margin-top:8px"><button class="btn g" data-a="up">Ya lo subí</button><button class="btn g" data-a="ch">Pedir cambio</button></div><p class="note" aria-live="polite"></p></div>';
   r.querySelector('.ttl').textContent=t;
   r.querySelector('.cap').textContent=text;

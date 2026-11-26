@@ -1,6 +1,6 @@
 # La Pulpe: app de reels "Crudo → Listos" (Etapa 1)
 
-v1, 26 nov 2026. ⚠️ = falta verificar o confirmar antes de usar.
+v1.1, 26 nov 2026 (suma logo y datos del negocio en un archivo aparte). ⚠️ = falta verificar o confirmar antes de usar.
 
 ## Qué hace
 
@@ -8,23 +8,28 @@ v1, 26 nov 2026. ⚠️ = falta verificar o confirmar antes de usar.
 2. n8n lo detecta (revisa cada 1 minuto) y:
    - lo pasa a vertical 9:16 (1080×1920), lo corta a 90 s como máximo y empareja el volumen;
    - lo transcribe (Groq, Whisper) y le **quema subtítulos** grandes, de 4 palabras por bloque (ver `ejemplo-subtitulos.png`);
-   - Claude escribe título, texto de portada, caption y hashtags, sin inventar precios ni fechas.
+   - le pone el **logo de La Pulpe** arriba a la derecha, chico y un poco transparente (ver `ejemplo-logo-en-reel.png`);
+   - Claude escribe título, texto de portada, caption y hashtags, sin inventar precios ni fechas;
+   - al final del caption agrega solo el teléfono de reservas, la dirección y el horario (los saca de `datos-negocio.json`, no los escribe Claude).
 3. En **Listos** aparecen el `.mp4` y un `.txt` con el caption listo para copiar.
 4. El crudo pasa a **Procesados** (así no se procesa dos veces) y le llega un mail al cliente con el link.
 5. El cliente lo revisa y lo sube él mismo a Instagram.
 
-**Todavía no hace (lo dejo para la v2, cuando el cliente lo use):** cortar silencios ni elegir las mejores partes, poner música ni el logo, avisar por WhatsApp.
+**Todavía no hace (lo dejo para la v2, cuando el cliente lo use):** cortar silencios ni elegir las mejores partes, poner música, avisar por WhatsApp.
 
 ## Archivos
 
 | Archivo | Para qué |
 |---|---|
-| `workflow-crudo-a-listos.json` | El flujo de n8n para importar (20 nodos) |
+| `workflow-crudo-a-listos.json` | El flujo de n8n para importar (24 nodos) |
+| `marca/datos-negocio.json` | Nombre, descripción, teléfono, dirección, horario, Instagram, hashtags y ajustes del logo. **Va a Drive** (paso 3) |
+| `marca/lapulpe.png` | Logo de La Pulpe. **Va a Drive** (paso 3) |
 | `Dockerfile` | Agrega FFmpeg a tu n8n de Hostinger |
 | `ejemplo-subtitulos.png` | Cómo quedan los subtítulos (prueba con video de barras) |
+| `ejemplo-logo-en-reel.png` | Cómo queda el logo en el reel (prueba con video de barras) |
 | `prototipo/index.html` | Prototipo de la app para mostrarle al cliente (se abre en el navegador, con ejemplos de La Pulpe) |
 
-Lo que probé acá: los comandos de FFmpeg (sacar audio y armar el reel 1080×1920 con subtítulos, en ~2 s para un video de 6 s), el código que arma los subtítulos y el que lee la respuesta de Claude. **No lo probé dentro de n8n ni contra Drive, Groq o Claude de verdad:** eso es el paso 6.
+Lo que probé acá: los comandos de FFmpeg (sacar audio y armar el reel 1080×1920 con subtítulos, en ~2 s para un video de 6 s), el logo encima (con y sin audio), el código que lee `datos-negocio.json`, el que arma los subtítulos y el que lee la respuesta de Claude y le suma el teléfono. **No lo probé dentro de n8n ni contra Drive, Groq o Claude de verdad:** eso es el paso 6.
 
 ---
 
@@ -59,6 +64,14 @@ Por qué: desde n8n 2.0 el nodo **Execute Command** viene apagado y se prende co
 ### 3. Carpetas en Drive (5 min)
 En el Drive **del cliente** (o en el tuyo, compartido con él): `La Pulpe Reels/` con `Crudo`, `Listos` y `Procesados`. El ID de cada carpeta es lo que sigue a `/folders/` en la URL.
 
+Sumá una cuarta carpeta, `Config`, y subí ahí `marca/datos-negocio.json` y `marca/lapulpe.png`. El ID de cada archivo es lo que va entre `/d/` y `/view` en su link.
+
+**Cómo cambiar los datos sin tocar n8n:**
+- **Teléfono, dirección, horario, hashtags, descripción:** editá `datos-negocio.json` (con un editor de texto, respetando comillas y comas) y volvé a subirlo **con "Administrar versiones" › "Subir nueva versión"** en Drive. Así conserva el mismo ID. Si lo subís como archivo nuevo, cambia el ID y hay que actualizarlo en el nodo Config.
+- **Logo:** lo mismo con `lapulpe.png` (mejor si es cuadrado o con fondo transparente).
+- **Sacar el logo de los reels:** `"logo_en_reel": false`. Tamaño: `logo_ancho_px` (200 = chico). Transparencia: `logo_opacidad` (1 = sólido).
+- Los cambios se aplican desde el próximo video que suban.
+
 ### 4. Credenciales en n8n (nunca en los nodos ni en chats; guardalas en Bitwarden)
 | Credencial | Tipo en n8n | Dato |
 |---|---|---|
@@ -70,13 +83,14 @@ En el Drive **del cliente** (o en el tuyo, compartido con él): `La Pulpe Reels/
 ### 5. Importar y completar
 - n8n › **Import from file** › `workflow-crudo-a-listos.json`.
 - Nodo **Nuevo video en Crudo**: ID de la carpeta Crudo.
-- Nodo **Config La Pulpe**: IDs de Listos y Procesados, mail de aviso, hashtags. Ya cargué que es una pulpería, Monumento Histórico y Cultural de Los Hornos (La Plata), en pie desde 1878, que abre los domingos al mediodía (comida casera, argentinidad, tradición, fuego, asados, carne y vinos, música en vivo, reservas para el domingo) con ese tono para los captions. Instagram confirmado: @paisanosyalmacenes. ⚠️ Confirmá los hashtags base.
+- Nodo **Config La Pulpe**: IDs de Listos y Procesados, mail de aviso, y los IDs de `datos-negocio.json` y `lapulpe.png` (carpeta Config). Los datos del negocio ya no se cargan acá.
+- En `datos-negocio.json` ya cargué: pulpería, Monumento Histórico y Cultural de Los Hornos (La Plata), en pie desde 1878; Av. 161 esq. Av. 78 (sale del logo); domingos al mediodía; reservas 11 6683-2645; Instagram @paisanosyalmacenes. ⚠️ Confirmá los hashtags base.
 - Asigná las 4 credenciales en los nodos que las piden (aparecen en rojo).
 
 ### 6. Probar (30 min)
 1. Subí a Crudo un video corto (15-20 s) hablando.
 2. En n8n: **Executions** y mirá nodo por nodo. Si falla, el nodo en rojo dice por qué.
-3. Probá también: un video horizontal, uno sin voz, y una foto (debe ignorarla).
+3. Probá también: un video horizontal, uno sin voz, y una foto (debe ignorarla). Fijate que el logo no tape nada importante y que el `.txt` termine con el teléfono.
 4. Recién ahí: **Active** (publicar el flujo).
 
 Recomendado: en Settings del flujo, poné un **Error Workflow** que te mande un mail a vos si algo falla, así no se entera primero el cliente.

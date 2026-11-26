@@ -1,5 +1,5 @@
 {
-  "name": "La Pulpe - Crudo a Listos (reels) v1",
+  "name": "La Pulpe - Crudo a Listos (reels) v1.1",
   "nodes": [
     {
       "parameters": {
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// === CONFIG LA PULPE: todo lo que cambia por cliente está acá ===\nconst CONFIG = {\n  cliente_id: 'la-pulpe',\n  nombre_negocio: 'La Pulpe',            // ⚠️ confirmar nombre exacto\n  rubro: 'pulpería, Monumento Histórico y Cultural de Los Hornos (partido de La Plata), en pie desde 1878; abre los domingos al mediodía; comida casera, argentinidad, tradición, fuego, asados, carne y vinos; música en vivo (tango, milonga); reservas para el domingo',\n  tono: 'cálido, criollo y orgulloso de la tradición; español rioplatense simple; evocar el fuego, la mesa larga y el domingo en familia, sin exagerar ni sonar a publicidad',\n  hashtags_base: ['#LaPulpe', '#Pulpería', '#LosHornos', '#ComidaCasera'], // ⚠️ confirmar con el cliente\n  instagram: '@paisanosyalmacenes',      // confirmado por Dora\n  email_aviso: 'COMPLETAR@mail.com',      // a quién le avisamos que hay reel listo\n  carpeta_listos_id: 'COMPLETAR_ID_CARPETA_LISTOS',\n  carpeta_procesados_id: 'COMPLETAR_ID_CARPETA_PROCESADOS',\n  duracion_max_seg: 90,\n  subs_palabras_por_bloque: 4,\n  subs_mayusculas: true,\n  tamano_max_mb: 500,\n};\n\nconst salida = [];\nfor (const item of $input.all()) {\n  const f = item.json;\n  const mime = f.mimeType || '';\n  const mb = Number(f.size || 0) / 1024 / 1024;\n  if (!mime.startsWith('video/')) continue;          // solo videos\n  if (mb > CONFIG.tamano_max_mb) continue;           // evita archivos gigantes\n  const ext = (String(f.name || '').match(/\\.[a-zA-Z0-9]+$/) || ['.mp4'])[0].toLowerCase();\n  salida.push({ json: {\n    ...CONFIG,\n    file_id: f.id,\n    file_name: f.name,\n    dir: `/home/node/.n8n-files/lapulpe/${f.id}`,\n    crudo: `/home/node/.n8n-files/lapulpe/${f.id}/crudo${ext}`,\n    fecha: new Date().toISOString().slice(0, 10),\n  }});\n}\nreturn salida;   // si no hay videos, el flujo se detiene acá"
+        "jsCode": "// === CONFIG LA PULPE: carpetas y ajustes técnicos ===\nconst CONFIG = {\n  // Los datos del negocio (nombre, teléfono, Instagram, hashtags, logo) NO van acá:\n  // están en datos-negocio.json y lapulpe.png, en la carpeta Config de Drive.\n  cliente_id: 'la-pulpe',\n  email_aviso: 'COMPLETAR@mail.com',      // a quién le avisamos que hay reel listo\n  carpeta_listos_id: 'COMPLETAR_ID_CARPETA_LISTOS',\n  carpeta_procesados_id: 'COMPLETAR_ID_CARPETA_PROCESADOS',\n  datos_negocio_id: 'COMPLETAR_ID_ARCHIVO_DATOS_NEGOCIO_JSON',\n  logo_id: 'COMPLETAR_ID_ARCHIVO_LOGO_PNG',\n  duracion_max_seg: 90,\n  subs_palabras_por_bloque: 4,\n  subs_mayusculas: true,\n  tamano_max_mb: 500,\n};\n\nconst salida = [];\nfor (const item of $input.all()) {\n  const f = item.json;\n  const mime = f.mimeType || '';\n  const mb = Number(f.size || 0) / 1024 / 1024;\n  if (!mime.startsWith('video/')) continue;          // solo videos\n  if (mb > CONFIG.tamano_max_mb) continue;           // evita archivos gigantes\n  const ext = (String(f.name || '').match(/\\.[a-zA-Z0-9]+$/) || ['.mp4'])[0].toLowerCase();\n  salida.push({ json: {\n    ...CONFIG,\n    file_id: f.id,\n    file_name: f.name,\n    dir: `/home/node/.n8n-files/lapulpe/${f.id}`,\n    crudo: `/home/node/.n8n-files/lapulpe/${f.id}/crudo${ext}`,\n    fecha: new Date().toISOString().slice(0, 10),\n  }});\n}\nreturn salida;   // si no hay videos, el flujo se detiene acá"
       },
       "id": "58e4c670-9f92-455f-8059-bdfd63b97ba0",
       "name": "Config La Pulpe",
@@ -65,6 +65,85 @@
         "operation": "download",
         "fileId": {
           "__rl": true,
+          "value": "={{ $('Config La Pulpe').item.json.datos_negocio_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "b1390b38-1e2e-4d01-bcc0-44d501685864",
+      "name": "Bajar datos del negocio",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Datos del negocio: se leen de datos-negocio.json (Drive) en cada video ===\n// Para cambiar teléfono, Instagram, hashtags, etc., se edita ese archivo, no n8n.\nconst salida = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  let d;\n  try { d = JSON.parse(buf.toString('utf8').replace(/^﻿/, '')); }\n  catch (e) { throw new Error('datos-negocio.json tiene un error de formato (revisá comas y comillas): ' + e.message); }\n  if (!d.nombre) throw new Error('Falta \"nombre\" en datos-negocio.json');\n  d.hashtags_base = Array.isArray(d.hashtags_base) ? d.hashtags_base : [];\n  // Pie fijo del caption: lo agregamos nosotros, no Claude, para que el teléfono nunca salga mal\n  d.pie_caption = [\n    d.telefono_reservas ? `📞 Reservas: ${d.telefono_reservas}` : '',\n    d.direccion ? `📍 ${d.direccion}` : '',\n    d.horario ? `🕛 ${d.horario}` : '',\n  ].filter(Boolean).join('\\n');\n  salida.push({ json: d, pairedItem: { item: i } });\n}\nreturn salida;"
+      },
+      "id": "1af2c7ff-1f53-4ac8-a804-2ec4a9650f73",
+      "name": "Datos del negocio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config La Pulpe').item.json.logo_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "40c7f83f-8dfc-4348-b40b-4051eaf36052",
+      "name": "Bajar logo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config La Pulpe').item.json.dir }}/logo.png",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "e0e845d7-5d11-4e1b-94e9-07df18091021",
+      "name": "Guardar logo en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
           "value": "={{ $('Config La Pulpe').item.json.file_id }}",
           "mode": "id"
         },
@@ -75,7 +154,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        660,
+        1540,
         300
       ],
       "credentials": {
@@ -97,7 +176,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        880,
+        1760,
         300
       ]
     },
@@ -110,7 +189,7 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1100,
+        1980,
         300
       ]
     },
@@ -125,7 +204,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1320,
+        2200,
         300
       ]
     },
@@ -175,7 +254,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1540,
+        2420,
         300
       ],
       "credentials": {
@@ -195,7 +274,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        2640,
         300
       ]
     },
@@ -211,7 +290,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1980,
+        2860,
         300
       ]
     },
@@ -236,7 +315,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-opus-5-5',\n  max_tokens: 4000,\n  output_config: {\n    effort: 'low',\n    format: { type: 'json_schema', schema: {\n      type: 'object',\n      properties: {\n        titulo: { type: 'string' },\n        gancho: { type: 'string' },\n        caption: { type: 'string' },\n        hashtags: { type: 'array', items: { type: 'string' } }\n      },\n      required: ['titulo', 'gancho', 'caption', 'hashtags'],\n      additionalProperties: false\n    }}\n  },\n  system: `Sos el community manager de ${$('Config La Pulpe').item.json.nombre_negocio} (rubro: ${$('Config La Pulpe').item.json.rubro}). Tono: ${$('Config La Pulpe').item.json.tono}.\\nA partir de la transcripción de un reel escribís:\\n- titulo: corto (máx. 8 palabras), para nombrar el archivo.\\n- gancho: texto para la portada del reel, máx. 6 palabras, que dé ganas de verlo.\\n- caption: 2 a 4 oraciones para Instagram, con un llamado a la acción al final (ej. seguinos, escribinos, vení). Podés usar 1 o 2 emojis.\\n- hashtags: 3 a 6 hashtags relevantes en español, con #.\\nREGLAS: no inventes precios, fechas de reservas, promociones, horarios, direcciones ni datos que no estén en la transcripción. Si la transcripción está vacía o no se entiende, escribí algo genérico y breve sobre el negocio sin inventar datos.`,\n  messages: [{ role: 'user', content: 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-opus-5-5',\n  max_tokens: 4000,\n  output_config: {\n    effort: 'low',\n    format: { type: 'json_schema', schema: {\n      type: 'object',\n      properties: {\n        titulo: { type: 'string' },\n        gancho: { type: 'string' },\n        caption: { type: 'string' },\n        hashtags: { type: 'array', items: { type: 'string' } }\n      },\n      required: ['titulo', 'gancho', 'caption', 'hashtags'],\n      additionalProperties: false\n    }}\n  },\n  system: `Sos el community manager de ${$('Datos del negocio').item.json.nombre} (${$('Datos del negocio').item.json.descripcion}; rubro: ${$('Datos del negocio').item.json.rubro}; abre: ${$('Datos del negocio').item.json.horario}). Tono: ${$('Datos del negocio').item.json.tono}.\\nA partir de la transcripción de un reel escribís:\\n- titulo: corto (máx. 8 palabras), para nombrar el archivo.\\n- gancho: texto para la portada del reel, máx. 6 palabras, que dé ganas de verlo.\\n- caption: 2 a 4 oraciones para Instagram, con un llamado a la acción al final (ej. seguinos, escribinos, vení). Podés usar 1 o 2 emojis.\\n- hashtags: 3 a 6 hashtags relevantes en español, con #.\\nNo escribas teléfono, dirección ni horario en el caption: se agregan solos al final. REGLAS: no inventes precios, fechas de reservas, promociones, horarios, direcciones ni datos que no estén en la transcripción. Si la transcripción está vacía o no se entiende, escribí algo genérico y breve sobre el negocio sin inventar datos.`,\n  messages: [{ role: 'user', content: 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -246,7 +325,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
+        3080,
         300
       ],
       "credentials": {
@@ -259,27 +338,27 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// === Code node \"Leer respuesta de Claude\" ===\nconst r = $input.item.json;\nif (r.stop_reason === 'refusal') throw new Error('Claude rechazó el pedido: revisar el video a mano');\nconst bloque = (r.content || []).find(b => b.type === 'text');\nif (!bloque) throw new Error('Claude no devolvió texto');\nconst d = JSON.parse(bloque.text);\nconst cfg = $('Config La Pulpe').item.json;\nconst hashtags = [...new Set([...(cfg.hashtags_base || []), ...(d.hashtags || [])])].join(' ');\nconst limpio = String(d.titulo || 'reel').replace(/[\\\\/:*?\"<>|]/g, '').slice(0, 60).trim();\nreturn { json: {\n  titulo: d.titulo,\n  gancho: d.gancho,\n  caption: d.caption,\n  hashtags,\n  nombre_archivo: `${cfg.fecha} - ${limpio}`,\n}};"
+        "jsCode": "// === Code node \"Leer respuesta de Claude\" ===\nconst r = $input.item.json;\nif (r.stop_reason === 'refusal') throw new Error('Claude rechazó el pedido: revisar el video a mano');\nconst bloque = (r.content || []).find(b => b.type === 'text');\nif (!bloque) throw new Error('Claude no devolvió texto');\nconst d = JSON.parse(bloque.text);\nconst cfg = $('Config La Pulpe').item.json;\nconst datos = $('Datos del negocio').item.json;\nconst hashtags = [...new Set([...(datos.hashtags_base || []), ...(d.hashtags || [])])].join(' ');\nconst limpio = String(d.titulo || 'reel').replace(/[\\\\/:*?\"<>|]/g, '').slice(0, 60).trim();\nreturn { json: {\n  titulo: d.titulo,\n  gancho: d.gancho,\n  caption: [String(d.caption || '').trim(), datos.pie_caption].filter(Boolean).join('\\n\\n'),\n  hashtags,\n  nombre_archivo: `${cfg.fecha} - ${limpio}`,\n}};"
       },
       "id": "473e56a2-dfd8-4fff-93a2-c5bf78481acc",
       "name": "Leer respuesta de Claude",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2420,
+        3300,
         300
       ]
     },
     {
       "parameters": {
-        "command": "={{ (() => { const c = $('Config La Pulpe').item.json; const subs = $('Armar subtítulos').item.json.tiene_subs; const estilo = \"FontName=DejaVu Sans,FontSize=16,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\"; const vf = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' + (subs ? `,subtitles=${c.dir}/subs.srt:force_style='${estilo}'` : ''); return `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\" -t ${c.duracion_max_seg} -vf \"${vf}\" -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -ar 48000 -movflags +faststart \"${c.dir}/listo.mp4\"`; })() }}"
+        "command": "={{ (() => {\n  const c = $('Config La Pulpe').item.json;\n  const d = $('Datos del negocio').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Sans,FontSize=16,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const base = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' + (subs ? `,subtitles=${c.dir}/subs.srt:force_style='${estilo}'` : '');\n  const logo = d.logo_en_reel !== false;\n  const ancho = Number(d.logo_ancho_px) || 200;\n  const opac = Math.min(1, Math.max(0.1, Number(d.logo_opacidad) || 0.9));\n  // Logo arriba a la derecha, debajo de la zona de la interfaz de Instagram\n  const fc = logo\n    ? `[0:v]${base}[v];[1:v]scale=${ancho}:-1,format=rgba,colorchannelmixer=aa=${opac}[lg];[v][lg]overlay=W-w-48:220:format=auto,format=yuv420p[out]`\n    : `[0:v]${base},format=yuv420p[out]`;\n  return `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\"` + (logo ? ` -i \"${c.dir}/logo.png\"` : '') +\n    ` -t ${c.duracion_max_seg} -filter_complex \"${fc}\" -map \"[out]\" -map 0:a? -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -ar 48000 -movflags +faststart \"${c.dir}/listo.mp4\"`;\n})() }}"
       },
       "id": "189e5554-4d76-4139-af76-947e918d2d06",
       "name": "Editar reel (FFmpeg)",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        2640,
+        3520,
         300
       ]
     },
@@ -294,7 +373,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2860,
+        3740,
         300
       ]
     },
@@ -319,7 +398,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        3080,
+        3960,
         300
       ],
       "credentials": {
@@ -339,7 +418,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3300,
+        4180,
         300
       ]
     },
@@ -364,7 +443,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        3520,
+        4400,
         300
       ],
       "credentials": {
@@ -398,7 +477,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        3740,
+        4620,
         300
       ],
       "credentials": {
@@ -423,7 +502,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        3960,
+        4840,
         300
       ],
       "credentials": {
@@ -442,7 +521,7 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        4180,
+        5060,
         300
       ]
     }
@@ -474,7 +553,7 @@
       "main": [
         [
           {
-            "node": "Bajar video crudo",
+            "node": "Bajar datos del negocio",
             "type": "main",
             "index": 0
           }
@@ -651,6 +730,50 @@
         [
           {
             "node": "Limpiar archivos temporales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Datos del negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Bajar logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar logo": {
+      "main": [
+        [
+          {
+            "node": "Guardar logo en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar logo en disco": {
+      "main": [
+        [
+          {
+            "node": "Bajar video crudo",
             "type": "main",
             "index": 0
           }
