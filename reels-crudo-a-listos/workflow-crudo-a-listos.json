@@ -1,5 +1,5 @@
 {
-  "name": "La Pulpe - Crudo a Listos (reels) v1.1",
+  "name": "La Pulpe - Crudo a Listos (reel + historia + feed) v1.2",
   "nodes": [
     {
       "parameters": {
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// === CONFIG LA PULPE: carpetas y ajustes técnicos ===\nconst CONFIG = {\n  // Los datos del negocio (nombre, teléfono, Instagram, hashtags, logo) NO van acá:\n  // están en datos-negocio.json y lapulpe.png, en la carpeta Config de Drive.\n  cliente_id: 'la-pulpe',\n  email_aviso: 'COMPLETAR@mail.com',      // a quién le avisamos que hay reel listo\n  carpeta_listos_id: 'COMPLETAR_ID_CARPETA_LISTOS',\n  carpeta_procesados_id: 'COMPLETAR_ID_CARPETA_PROCESADOS',\n  datos_negocio_id: 'COMPLETAR_ID_ARCHIVO_DATOS_NEGOCIO_JSON',\n  logo_id: 'COMPLETAR_ID_ARCHIVO_LOGO_PNG',\n  duracion_max_seg: 90,\n  subs_palabras_por_bloque: 4,\n  subs_mayusculas: true,\n  tamano_max_mb: 500,\n};\n\nconst salida = [];\nfor (const item of $input.all()) {\n  const f = item.json;\n  const mime = f.mimeType || '';\n  const mb = Number(f.size || 0) / 1024 / 1024;\n  if (!mime.startsWith('video/')) continue;          // solo videos\n  if (mb > CONFIG.tamano_max_mb) continue;           // evita archivos gigantes\n  const ext = (String(f.name || '').match(/\\.[a-zA-Z0-9]+$/) || ['.mp4'])[0].toLowerCase();\n  salida.push({ json: {\n    ...CONFIG,\n    file_id: f.id,\n    file_name: f.name,\n    dir: `/home/node/.n8n-files/lapulpe/${f.id}`,\n    crudo: `/home/node/.n8n-files/lapulpe/${f.id}/crudo${ext}`,\n    fecha: new Date().toISOString().slice(0, 10),\n  }});\n}\nreturn salida;   // si no hay videos, el flujo se detiene acá"
+        "jsCode": "// === CONFIG LA PULPE: carpetas y ajustes técnicos ===\nconst CONFIG = {\n  // Los datos del negocio (nombre, teléfono, Instagram, hashtags, logo) NO van acá:\n  // están en datos-negocio.json y lapulpe.png, en la carpeta Recursos de Drive.\n  cliente_id: 'la-pulpe',\n  email_aviso: 'COMPLETAR@mail.com',      // a quién le avisamos que hay reel listo\n  carpeta_reels_id: 'COMPLETAR_ID_CARPETA_LISTOS_REELS',\n  carpeta_historias_id: 'COMPLETAR_ID_CARPETA_LISTOS_HISTORIAS',\n  carpeta_feed_id: 'COMPLETAR_ID_CARPETA_LISTOS_FEED',\n  carpeta_edicion_id: 'COMPLETAR_ID_CARPETA_EDICION',   // acá va el crudo ya procesado\n  datos_negocio_id: 'COMPLETAR_ID_ARCHIVO_DATOS_NEGOCIO_JSON',\n  logo_id: 'COMPLETAR_ID_ARCHIVO_LOGO_PNG',\n  fuente_id: 'COMPLETAR_ID_ARCHIVO_FUENTE_TTF',\n  duracion_max_seg: 90,      // reel\n  historia_max_seg: 15,      // historia\n  subs_palabras_por_bloque: 4,\n  subs_mayusculas: true,\n  tamano_max_mb: 500,\n};\n\nconst salida = [];\nfor (const item of $input.all()) {\n  const f = item.json;\n  const mime = f.mimeType || '';\n  const mb = Number(f.size || 0) / 1024 / 1024;\n  if (!mime.startsWith('video/')) continue;          // solo videos\n  if (mb > CONFIG.tamano_max_mb) continue;           // evita archivos gigantes\n  const ext = (String(f.name || '').match(/\\.[a-zA-Z0-9]+$/) || ['.mp4'])[0].toLowerCase();\n  salida.push({ json: {\n    ...CONFIG,\n    file_id: f.id,\n    file_name: f.name,\n    dir: `/home/node/.n8n-files/lapulpe/${f.id}`,\n    crudo: `/home/node/.n8n-files/lapulpe/${f.id}/crudo${ext}`,\n    fecha: new Date().toISOString().slice(0, 10),\n  }});\n}\nreturn salida;   // si no hay videos, el flujo se detiene acá"
       },
       "id": "58e4c670-9f92-455f-8059-bdfd63b97ba0",
       "name": "Config La Pulpe",
@@ -87,7 +87,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// === Datos del negocio: se leen de datos-negocio.json (Drive) en cada video ===\n// Para cambiar teléfono, Instagram, hashtags, etc., se edita ese archivo, no n8n.\nconst salida = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  let d;\n  try { d = JSON.parse(buf.toString('utf8').replace(/^﻿/, '')); }\n  catch (e) { throw new Error('datos-negocio.json tiene un error de formato (revisá comas y comillas): ' + e.message); }\n  if (!d.nombre) throw new Error('Falta \"nombre\" en datos-negocio.json');\n  d.hashtags_base = Array.isArray(d.hashtags_base) ? d.hashtags_base : [];\n  // Pie fijo del caption: lo agregamos nosotros, no Claude, para que el teléfono nunca salga mal\n  d.pie_caption = [\n    d.telefono_reservas ? `📞 Reservas: ${d.telefono_reservas}` : '',\n    d.direccion ? `📍 ${d.direccion}` : '',\n    d.horario ? `🕛 ${d.horario}` : '',\n  ].filter(Boolean).join('\\n');\n  salida.push({ json: d, pairedItem: { item: i } });\n}\nreturn salida;"
+        "jsCode": "// === Datos del negocio: se leen de datos-negocio.json (Drive) en cada video ===\n// Para cambiar teléfono, Instagram, hashtags, etc., se edita ese archivo, no n8n.\nconst salida = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  let d;\n  try { d = JSON.parse(buf.toString('utf8').replace(/^﻿/, '')); }\n  catch (e) { throw new Error('datos-negocio.json tiene un error de formato (revisá comas y comillas): ' + e.message); }\n  if (!d.nombre) throw new Error('Falta \"nombre\" en datos-negocio.json');\n  d.hashtags_base = Array.isArray(d.hashtags_base) ? d.hashtags_base : [];\n  // Pie fijo del caption: lo agregamos nosotros, no Claude, para que el teléfono nunca salga mal\n  d.pie_caption = [\n    d.telefono_reservas ? `📞 Reservas: ${d.telefono_reservas}` : '',\n    d.direccion ? `📍 ${d.direccion}` : '',\n    d.horario ? `🕛 ${d.horario}` : '',\n  ].filter(Boolean).join('\\n');\n  const hex = (c, def) => (/^#?[0-9a-fA-F]{6}$/.test(String(c || '')) ? String(c).replace('#', '') : def);\n  d.ff_marco = '0x' + hex(d.color_marco, 'F3EBDD');   // formato de color para FFmpeg\n  d.ff_texto = '0x' + hex(d.color_texto, '1A1A1A');\n  salida.push({ json: d, pairedItem: { item: i } });\n}\nreturn salida;"
       },
       "id": "1af2c7ff-1f53-4ac8-a804-2ec4a9650f73",
       "name": "Datos del negocio",
@@ -144,6 +144,47 @@
         "operation": "download",
         "fileId": {
           "__rl": true,
+          "value": "={{ $('Config La Pulpe').item.json.fuente_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "1d94f1d6-9821-4e13-afd9-05be006ce13f",
+      "name": "Bajar fuente",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config La Pulpe').item.json.dir }}/fuente.ttf",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "bf0952fd-d7dd-42bb-85ee-006358243e29",
+      "name": "Guardar fuente en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
           "value": "={{ $('Config La Pulpe').item.json.file_id }}",
           "mode": "id"
         },
@@ -154,7 +195,7 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1540,
+        1980,
         300
       ],
       "credentials": {
@@ -176,7 +217,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        1760,
+        2200,
         300
       ]
     },
@@ -189,7 +230,7 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1980,
+        2420,
         300
       ]
     },
@@ -204,7 +245,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2200,
+        2640,
         300
       ]
     },
@@ -254,7 +295,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
+        2860,
         300
       ],
       "credentials": {
@@ -274,7 +315,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        3080,
         300
       ]
     },
@@ -290,7 +331,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2860,
+        3300,
         300
       ]
     },
@@ -325,7 +366,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3080,
+        3520,
         300
       ],
       "credentials": {
@@ -338,34 +379,60 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// === Code node \"Leer respuesta de Claude\" ===\nconst r = $input.item.json;\nif (r.stop_reason === 'refusal') throw new Error('Claude rechazó el pedido: revisar el video a mano');\nconst bloque = (r.content || []).find(b => b.type === 'text');\nif (!bloque) throw new Error('Claude no devolvió texto');\nconst d = JSON.parse(bloque.text);\nconst cfg = $('Config La Pulpe').item.json;\nconst datos = $('Datos del negocio').item.json;\nconst hashtags = [...new Set([...(datos.hashtags_base || []), ...(d.hashtags || [])])].join(' ');\nconst limpio = String(d.titulo || 'reel').replace(/[\\\\/:*?\"<>|]/g, '').slice(0, 60).trim();\nreturn { json: {\n  titulo: d.titulo,\n  gancho: d.gancho,\n  caption: [String(d.caption || '').trim(), datos.pie_caption].filter(Boolean).join('\\n\\n'),\n  hashtags,\n  nombre_archivo: `${cfg.fecha} - ${limpio}`,\n}};"
+        "jsCode": "// === Code node \"Leer respuesta de Claude\" ===\nconst r = $input.item.json;\nif (r.stop_reason === 'refusal') throw new Error('Claude rechazó el pedido: revisar el video a mano');\nconst bloque = (r.content || []).find(b => b.type === 'text');\nif (!bloque) throw new Error('Claude no devolvió texto');\nconst d = JSON.parse(bloque.text);\nconst cfg = $('Config La Pulpe').item.json;\nconst datos = $('Datos del negocio').item.json;\nconst hashtags = [...new Set([...(datos.hashtags_base || []), ...(d.hashtags || [])])].join(' ');\nconst limpio = String(d.titulo || 'reel').replace(/[\\\\/:*?\"<>|]/g, '').slice(0, 60).trim();\n// Portada: el gancho partido en renglones de ~18 letras (máx. 3)\nconst palabras = String(d.gancho || d.titulo || datos.nombre).toUpperCase().split(/\\s+/).filter(Boolean);\nconst renglones = [];\nfor (const p of palabras) {\n  const ult = renglones[renglones.length - 1];\n  if (ult !== undefined && (ult + ' ' + p).length <= 18) renglones[renglones.length - 1] = ult + ' ' + p;\n  else renglones.push(p);\n}\nconst b64 = t => Buffer.from(String(t || ''), 'utf8').toString('base64');\nreturn { json: {\n  portada_b64: b64(renglones.slice(0, 3).join('\\n')),\n  portada_pie_b64: b64([datos.instagram, datos.telefono_reservas ? 'Reservas ' + datos.telefono_reservas : ''].filter(Boolean).join('  ·  ')),\n  hist1_b64: b64(datos.historia_linea_1 || (datos.telefono_reservas ? 'RESERVAS ' + datos.telefono_reservas : datos.nombre)),\n  hist2_b64: b64(datos.historia_linea_2 || datos.horario || ''),\n  titulo: d.titulo,\n  gancho: d.gancho,\n  caption: [String(d.caption || '').trim(), datos.pie_caption].filter(Boolean).join('\\n\\n'),\n  hashtags,\n  nombre_archivo: `${cfg.fecha} - ${limpio}`,\n}};"
       },
       "id": "473e56a2-dfd8-4fff-93a2-c5bf78481acc",
       "name": "Leer respuesta de Claude",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3300,
+        3740,
         300
       ]
     },
     {
       "parameters": {
-        "command": "={{ (() => {\n  const c = $('Config La Pulpe').item.json;\n  const d = $('Datos del negocio').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Sans,FontSize=16,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const base = 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' + (subs ? `,subtitles=${c.dir}/subs.srt:force_style='${estilo}'` : '');\n  const logo = d.logo_en_reel !== false;\n  const ancho = Number(d.logo_ancho_px) || 200;\n  const opac = Math.min(1, Math.max(0.1, Number(d.logo_opacidad) || 0.9));\n  // Logo arriba a la derecha, debajo de la zona de la interfaz de Instagram\n  const fc = logo\n    ? `[0:v]${base}[v];[1:v]scale=${ancho}:-1,format=rgba,colorchannelmixer=aa=${opac}[lg];[v][lg]overlay=W-w-48:220:format=auto,format=yuv420p[out]`\n    : `[0:v]${base},format=yuv420p[out]`;\n  return `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\"` + (logo ? ` -i \"${c.dir}/logo.png\"` : '') +\n    ` -t ${c.duracion_max_seg} -filter_complex \"${fc}\" -map \"[out]\" -map 0:a? -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -ar 48000 -movflags +faststart \"${c.dir}/listo.mp4\"`;\n})() }}"
+        "command": "={{ (() => {\n  const c = $('Config La Pulpe').item.json;\n  const d = $('Datos del negocio').item.json;\n  const r = $('Leer respuesta de Claude').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Serif,FontSize=15,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const sub = subs ? `,subtitles=${c.dir}/subs.srt:fontsdir=${c.dir}:force_style='${estilo}'` : '';\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  // REEL 9:16: video entero, subtítulos, marco fino del color de marca y logo arriba a la derecha\n  const logo = d.logo_en_reel !== false;\n  const ancho = Number(d.logo_ancho_px) || 200;\n  const opac = Math.min(1, Math.max(0.1, Number(d.logo_opacidad) || 0.9));\n  const base = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1${sub},drawbox=x=0:y=0:w=iw:h=ih:color=${d.ff_marco}:t=14`;\n  const fc = logo\n    ? `[0:v]${base}[v];[1:v]scale=${ancho}:-1,format=rgba,colorchannelmixer=aa=${opac}[lg];[v][lg]overlay=W-w-48:220:format=auto,format=yuv420p[out]`\n    : `[0:v]${base},format=yuv420p[out]`;\n  return `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\"` + (logo ? ` -i \"${c.dir}/logo.png\"` : '') +\n    ` -t ${c.duracion_max_seg} -filter_complex \"${fc}\" -map \"[out]\" -map 0:a? -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:a aac -b:a 128k -ar 48000 -c:v libx264 -preset veryfast -crf 23 -movflags +faststart \"${c.dir}/reel.mp4\"`;\n})() }}"
       },
       "id": "189e5554-4d76-4139-af76-947e918d2d06",
       "name": "Editar reel (FFmpeg)",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        3520,
+        3960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ (() => {\n  const c = $('Config La Pulpe').item.json;\n  const d = $('Datos del negocio').item.json;\n  const r = $('Leer respuesta de Claude').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Serif,FontSize=15,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const sub = subs ? `,subtitles=${c.dir}/subs.srt:fontsdir=${c.dir}:force_style='${estilo}'` : '';\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  // HISTORIA 9:16, hasta 15 s: banda de marca arriba (logo) y abajo (reservas), video en el medio\n  const fc = `[0:v]scale=1000:1380:force_original_aspect_ratio=increase,crop=1000:1380,setsar=1${sub}[v];` +\n    `[1:v]scale=230:-1,colorkey=0xFFFFFF:0.12:0.08[lg];[2:v][v]overlay=40:290:shortest=1[a];[a][lg]overlay=(W-w)/2:30[b];` +\n    `[b]drawtext=${font}:textfile=${c.dir}/hist1.txt:fontsize=64:fontcolor=${d.ff_texto}:x=(w-text_w)/2:y=1712,` +\n    `drawtext=${font}:textfile=${c.dir}/hist2.txt:fontsize=32:fontcolor=${d.ff_texto}:x=(w-text_w)/2:y=1812,format=yuv420p[out]`;\n  return txt('hist1', r.hist1_b64) + txt('hist2', r.hist2_b64) +\n    `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\" -i \"${c.dir}/logo.png\" -f lavfi -i color=c=${d.ff_marco}:s=1080x1920:r=30` +\n    ` -t ${c.historia_max_seg} -filter_complex \"${fc}\" -map \"[out]\" -map 0:a? -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:a aac -b:a 128k -ar 48000 -c:v libx264 -preset veryfast -crf 23 -movflags +faststart \"${c.dir}/historia.mp4\"`;\n})() }}"
+      },
+      "id": "55892b61-a05c-4acb-9ef3-38ab0be89279",
+      "name": "Editar historia (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        4180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ (() => {\n  const c = $('Config La Pulpe').item.json;\n  const d = $('Datos del negocio').item.json;\n  const r = $('Leer respuesta de Claude').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Serif,FontSize=15,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const sub = subs ? `,subtitles=${c.dir}/subs.srt:fontsdir=${c.dir}:force_style='${estilo}'` : '';\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  // PORTADA FEED 4:5 (1080x1350): el mejor cuadro del video con marco de marca, título y logo\n  const fc = `[0:v]thumbnail=90,scale=1000:1000:force_original_aspect_ratio=increase,crop=1000:1000,setsar=1,setpts=0[f];` +\n    `[1:v]scale=220:-1,colorkey=0xFFFFFF:0.12:0.08[lg];[2:v][f]overlay=40:40:eof_action=repeat[a];[a][lg]overlay=W-w-40:1062[b];` +\n    `[b]drawtext=${font}:textfile=${c.dir}/portada.txt:fontsize=56:line_spacing=8:fontcolor=${d.ff_texto}:x=40:y=1072,` +\n    `drawtext=${font}:textfile=${c.dir}/portada_pie.txt:fontsize=24:fontcolor=${d.ff_texto}:x=40:y=1304[out]`;\n  return txt('portada', r.portada_b64) + txt('portada_pie', r.portada_pie_b64) +\n    `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\" -i \"${c.dir}/logo.png\" -f lavfi -i color=c=${d.ff_marco}:s=1080x1350:d=1` +\n    ` -filter_complex \"${fc}\" -map \"[out]\" -frames:v 1 -q:v 2 \"${c.dir}/portada.jpg\"`;\n})() }}"
+      },
+      "id": "258c9d3c-4e7a-49b4-86e3-cccc9e3c4ff8",
+      "name": "Hacer portada feed (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        4400,
         300
       ]
     },
     {
       "parameters": {
         "operation": "read",
-        "fileSelector": "={{ $('Config La Pulpe').item.json.dir }}/listo.mp4",
+        "fileSelector": "={{ $('Config La Pulpe').item.json.dir }}/reel.mp4",
         "options": {}
       },
       "id": "e70b7f0f-750a-484e-a13e-09cd97ee5622",
@@ -373,7 +440,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        3740,
+        4620,
         300
       ]
     },
@@ -387,18 +454,110 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $('Config La Pulpe').item.json.carpeta_listos_id }}",
+          "value": "={{ $('Config La Pulpe').item.json.carpeta_reels_id }}",
           "mode": "id"
         },
         "inputDataFieldName": "data",
         "options": {}
       },
       "id": "29e71012-38fa-4f4d-a19e-1fa59508acb8",
-      "name": "Subir reel a Listos",
+      "name": "Subir reel a Listos/Reels",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        3960,
+        4840,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Config La Pulpe').item.json.dir }}/historia.mp4",
+        "options": {}
+      },
+      "id": "bc026051-a5f0-43e0-8503-a52d1ef1a994",
+      "name": "Leer historia",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        5060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Leer respuesta de Claude').item.json.nombre_archivo }} - historia.mp4",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config La Pulpe').item.json.carpeta_historias_id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "cc91657a-f4db-40ab-99c6-17e920531905",
+      "name": "Subir historia a Listos/Historias",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5280,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Config La Pulpe').item.json.dir }}/portada.jpg",
+        "options": {}
+      },
+      "id": "7f328343-8154-4434-9f27-12829e6e7834",
+      "name": "Leer portada",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        5500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Leer respuesta de Claude').item.json.nombre_archivo }} - portada feed.jpg",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config La Pulpe').item.json.carpeta_feed_id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "e658bfc7-f8f4-4c65-8bbb-e8e5885f6605",
+      "name": "Subir portada a Listos/Feed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5720,
         300
       ],
       "credentials": {
@@ -411,14 +570,14 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// === Code node \"Armar texto para publicar\" ===\nconst c = $('Leer respuesta de Claude').item.json;\nconst cfg = $('Config La Pulpe').item.json;\nconst txt = [\n  `TÍTULO: ${c.titulo}`,\n  `TEXTO PARA LA PORTADA: ${c.gancho}`,\n  '',\n  'CAPTION (copiar y pegar):',\n  c.caption,\n  '',\n  c.hashtags,\n  '',\n  `Video original: ${cfg.file_name}`,\n].join('\\n');\nreturn { json: {}, binary: { data: {\n  data: Buffer.from(txt, 'utf8').toString('base64'),\n  mimeType: 'text/plain',\n  fileName: `${c.nombre_archivo}.txt`,\n}}};"
+        "jsCode": "// === Code node \"Armar texto para publicar\" ===\nconst c = $('Leer respuesta de Claude').item.json;\nconst cfg = $('Config La Pulpe').item.json;\nconst txt = [\n  `TÍTULO: ${c.titulo}`,\n  `TEXTO PARA LA PORTADA: ${c.gancho}`,\n  '',\n  'CAPTION (copiar y pegar):',\n  c.caption,\n  '',\n  c.hashtags,\n  '',\n  'Archivos: reel (Listos/Reels), historia de 15 s (Listos/Historias), portada 4:5 (Listos/Feed).',\n  `Video original: ${cfg.file_name}`,\n].join('\\n');\nreturn { json: {}, binary: { data: {\n  data: Buffer.from(txt, 'utf8').toString('base64'),\n  mimeType: 'text/plain',\n  fileName: `${c.nombre_archivo}.txt`,\n}}};"
       },
       "id": "7c9bd807-6802-493b-a3ce-34eb4420c38d",
       "name": "Armar texto para publicar",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4180,
+        5940,
         300
       ]
     },
@@ -432,18 +591,18 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $('Config La Pulpe').item.json.carpeta_listos_id }}",
+          "value": "={{ $('Config La Pulpe').item.json.carpeta_reels_id }}",
           "mode": "id"
         },
         "inputDataFieldName": "data",
         "options": {}
       },
       "id": "74d28673-83b7-4fc2-9bfd-e53e2de159ab",
-      "name": "Subir texto a Listos",
+      "name": "Subir texto a Listos/Reels",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        4400,
+        6160,
         300
       ],
       "credentials": {
@@ -468,16 +627,16 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $('Config La Pulpe').item.json.carpeta_procesados_id }}",
+          "value": "={{ $('Config La Pulpe').item.json.carpeta_edicion_id }}",
           "mode": "id"
         }
       },
       "id": "f15ef991-96fc-4cb0-8fc8-058a4a01f74f",
-      "name": "Mover crudo a Procesados",
+      "name": "Mover crudo a Edicion",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        4620,
+        6380,
         300
       ],
       "credentials": {
@@ -490,9 +649,9 @@
     {
       "parameters": {
         "sendTo": "={{ $('Config La Pulpe').item.json.email_aviso }}",
-        "subject": "=🎬 Tu reel está listo: {{ $('Leer respuesta de Claude').item.json.titulo }}",
+        "subject": "=🎬 Listos: reel, historia y portada — {{ $('Leer respuesta de Claude').item.json.titulo }}",
         "emailType": "text",
-        "message": "=¡Hola! Ya está listo tu reel en la carpeta Listos.\n\nVideo: https://drive.google.com/file/d/{{ $('Subir reel a Listos').item.json.id }}/view\n\nCaption para pegar:\n{{ $('Leer respuesta de Claude').item.json.caption }}\n\n{{ $('Leer respuesta de Claude').item.json.hashtags }}\n\nRevisalo antes de subirlo. Si algo no te gusta, avisanos.\n— DCC Consultoría IT",
+        "message": "=¡Hola! Ya está listo tu contenido en la carpeta Listos.\n\nReel: https://drive.google.com/file/d/{{ $('Subir reel a Listos/Reels').item.json.id }}/view\nHistoria (15 s): https://drive.google.com/file/d/{{ $('Subir historia a Listos/Historias').item.json.id }}/view\nPortada para el feed: https://drive.google.com/file/d/{{ $('Subir portada a Listos/Feed').item.json.id }}/view\n\nCaption para pegar:\n{{ $('Leer respuesta de Claude').item.json.caption }}\n\n{{ $('Leer respuesta de Claude').item.json.hashtags }}\n\nRevisalo antes de subirlo. Si algo no te gusta, avisanos.\n— DCC Consultoría IT",
         "options": {
           "appendAttribution": false
         }
@@ -502,7 +661,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        4840,
+        6600,
         300
       ],
       "credentials": {
@@ -521,7 +680,7 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        5060,
+        6820,
         300
       ]
     }
@@ -554,6 +713,72 @@
         [
           {
             "node": "Bajar datos del negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Datos del negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Bajar logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar logo": {
+      "main": [
+        [
+          {
+            "node": "Guardar logo en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar logo en disco": {
+      "main": [
+        [
+          {
+            "node": "Bajar fuente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar fuente": {
+      "main": [
+        [
+          {
+            "node": "Guardar fuente en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar fuente en disco": {
+      "main": [
+        [
+          {
+            "node": "Bajar video crudo",
             "type": "main",
             "index": 0
           }
@@ -663,6 +888,28 @@
       "main": [
         [
           {
+            "node": "Editar historia (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar historia (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Hacer portada feed (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hacer portada feed (FFmpeg)": {
+      "main": [
+        [
+          {
             "node": "Leer reel listo",
             "type": "main",
             "index": 0
@@ -674,14 +921,58 @@
       "main": [
         [
           {
-            "node": "Subir reel a Listos",
+            "node": "Subir reel a Listos/Reels",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Subir reel a Listos": {
+    "Subir reel a Listos/Reels": {
+      "main": [
+        [
+          {
+            "node": "Leer historia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer historia": {
+      "main": [
+        [
+          {
+            "node": "Subir historia a Listos/Historias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir historia a Listos/Historias": {
+      "main": [
+        [
+          {
+            "node": "Leer portada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer portada": {
+      "main": [
+        [
+          {
+            "node": "Subir portada a Listos/Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir portada a Listos/Feed": {
       "main": [
         [
           {
@@ -696,25 +987,25 @@
       "main": [
         [
           {
-            "node": "Subir texto a Listos",
+            "node": "Subir texto a Listos/Reels",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Subir texto a Listos": {
+    "Subir texto a Listos/Reels": {
       "main": [
         [
           {
-            "node": "Mover crudo a Procesados",
+            "node": "Mover crudo a Edicion",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Mover crudo a Procesados": {
+    "Mover crudo a Edicion": {
       "main": [
         [
           {
@@ -730,50 +1021,6 @@
         [
           {
             "node": "Limpiar archivos temporales",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Bajar datos del negocio": {
-      "main": [
-        [
-          {
-            "node": "Datos del negocio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Datos del negocio": {
-      "main": [
-        [
-          {
-            "node": "Bajar logo",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Bajar logo": {
-      "main": [
-        [
-          {
-            "node": "Guardar logo en disco",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Guardar logo en disco": {
-      "main": [
-        [
-          {
-            "node": "Bajar video crudo",
             "type": "main",
             "index": 0
           }

@@ -1,6 +1,6 @@
-# La Pulpe: app de reels "Crudo → Listos" (Etapa 1)
+# La Pulpe: "Crudo → Listos" (reel, historia y portada de feed) — Etapa 1
 
-v1.1, 26 nov 2026 (suma logo y datos del negocio en un archivo aparte). ⚠️ = falta verificar o confirmar antes de usar.
+v1.2, 26 nov 2026: de cada video crudo salen 3 piezas con el mismo marco de marca (reel, historia y portada de feed). ⚠️ = falta verificar o confirmar antes de usar.
 
 ## Qué hace
 
@@ -8,11 +8,14 @@ v1.1, 26 nov 2026 (suma logo y datos del negocio en un archivo aparte). ⚠️ =
 2. n8n lo detecta (revisa cada 1 minuto) y:
    - lo pasa a vertical 9:16 (1080×1920), lo corta a 90 s como máximo y empareja el volumen;
    - lo transcribe (Groq, Whisper) y le **quema subtítulos** grandes, de 4 palabras por bloque (ver `ejemplo-subtitulos.png`);
-   - le pone el **logo de La Pulpe** arriba a la derecha, chico y un poco transparente (ver `ejemplo-logo-en-reel.png`);
+   - arma **3 piezas con la misma identidad** (color crema, tipografía serif y logo; ver `ejemplo-reel-historia-feed.png`):
+     - **Reel** 9:16, hasta 90 s: video entero con subtítulos, marco fino crema y el logo arriba a la derecha.
+     - **Historia** 9:16, hasta 15 s: banda crema arriba con el logo, el video en el medio con subtítulos, y abajo "RESERVAS 11 6683-2645" y "Domingos al mediodía · @paisanosyalmacenes".
+     - **Portada de feed** 4:5 (1080×1350, foto JPG): el mejor cuadro del video con marco crema, el título del reel y el logo. Sirve como posteo de foto, como primera imagen de un carrusel o como portada del reel en el perfil.
    - Claude escribe título, texto de portada, caption y hashtags, sin inventar precios ni fechas;
    - al final del caption agrega solo el teléfono de reservas, la dirección y el horario (los saca de `datos-negocio.json`, no los escribe Claude).
-3. En **Listos** aparecen el `.mp4` y un `.txt` con el caption listo para copiar.
-4. El crudo pasa a **Procesados** (así no se procesa dos veces) y le llega un mail al cliente con el link.
+3. En **Listos/Reels** quedan el reel y un `.txt` con el caption; en **Listos/Historias**, la historia; en **Listos/Feed**, la portada.
+4. El crudo pasa a **Edicion** (así no se procesa dos veces) y le llega un mail al cliente con los 3 links.
 5. El cliente lo revisa y lo sube él mismo a Instagram.
 
 **Todavía no hace (lo dejo para la v2, cuando el cliente lo use):** cortar silencios ni elegir las mejores partes, poner música, avisar por WhatsApp.
@@ -21,15 +24,16 @@ v1.1, 26 nov 2026 (suma logo y datos del negocio en un archivo aparte). ⚠️ =
 
 | Archivo | Para qué |
 |---|---|
-| `workflow-crudo-a-listos.json` | El flujo de n8n para importar (24 nodos) |
-| `marca/datos-negocio.json` | Nombre, descripción, teléfono, dirección, horario, Instagram, hashtags y ajustes del logo. **Va a Drive** (paso 3) |
+| `workflow-crudo-a-listos.json` | El flujo de n8n para importar (32 nodos) |
+| `marca/datos-negocio.json` | Nombre, descripción, teléfono, dirección, horario, Instagram, hashtags, colores de marca, textos de la historia y ajustes del logo. **Va a Drive** (paso 3) |
+| `marca/fuente.ttf` | Tipografía de los textos y subtítulos (DejaVu Serif Bold, licencia libre en `marca/fuente-LICENCIA.txt`). **Va a Drive** (paso 3) |
 | `marca/lapulpe.png` | Logo de La Pulpe. **Va a Drive** (paso 3) |
 | `Dockerfile` | Agrega FFmpeg a tu n8n de Hostinger |
 | `ejemplo-subtitulos.png` | Cómo quedan los subtítulos (prueba con video de barras) |
-| `ejemplo-logo-en-reel.png` | Cómo queda el logo en el reel (prueba con video de barras) |
+| `ejemplo-reel-historia-feed.png` | Cómo quedan reel, historia y portada (prueba con un video de colores) |
 | `prototipo/index.html` | Prototipo de la app para mostrarle al cliente (se abre en el navegador, con ejemplos de La Pulpe) |
 
-Lo que probé acá: los comandos de FFmpeg (sacar audio y armar el reel 1080×1920 con subtítulos, en ~2 s para un video de 6 s), el logo encima (con y sin audio), el código que lee `datos-negocio.json`, el que arma los subtítulos y el que lee la respuesta de Claude y le suma el teléfono. **No lo probé dentro de n8n ni contra Drive, Groq o Claude de verdad:** eso es el paso 6.
+Lo que probé acá: los comandos de FFmpeg (sacar audio y armar el reel 1080×1920 con subtítulos, en ~2 s para un video de 6 s), el reel, la historia de 15 s y la portada 4:5 con marco, logo y textos (con y sin audio), el código que lee `datos-negocio.json`, el que arma los subtítulos y el que lee la respuesta de Claude y le suma el teléfono. **No lo probé dentro de n8n ni contra Drive, Groq o Claude de verdad:** eso es el paso 6.
 
 ---
 
@@ -62,13 +66,26 @@ Por qué: desde n8n 2.0 el nodo **Execute Command** viene apagado y se prende co
 ⚠️ Al actualizar n8n, hay que volver a hacer el `docker build` con la versión nueva (si no, `docker compose pull` no trae FFmpeg).
 
 ### 3. Carpetas en Drive (5 min)
-En el Drive **del cliente** (o en el tuyo, compartido con él): `La Pulpe Reels/` con `Crudo`, `Listos` y `Procesados`. El ID de cada carpeta es lo que sigue a `/folders/` en la URL.
+En el Drive **del cliente** (o en el tuyo, compartido con él), una carpeta `La_Pulpe` con:
 
-Sumá una cuarta carpeta, `Config`, y subí ahí `marca/datos-negocio.json` y `marca/lapulpe.png`. El ID de cada archivo es lo que va entre `/d/` y `/view` en su link.
+```
+La_Pulpe/
+├── Crudo        ← acá suben los videos
+├── Listos
+│   ├── Reels      ← reel + .txt con el caption
+│   ├── Historias  ← historia de 15 s
+│   └── Feed       ← portada 4:5
+├── Edicion      ← el crudo, ya procesado (para no repetirlo)
+└── Recursos     ← datos-negocio.json, lapulpe.png y fuente.ttf
+```
+
+El ID de cada carpeta es lo que sigue a `/folders/` en la URL. Subí a `Recursos` los 3 archivos de `marca/`. El ID de cada archivo es lo que va entre `/d/` y `/view` en su link.
 
 **Cómo cambiar los datos sin tocar n8n:**
 - **Teléfono, dirección, horario, hashtags, descripción:** editá `datos-negocio.json` (con un editor de texto, respetando comillas y comas) y volvé a subirlo **con "Administrar versiones" › "Subir nueva versión"** en Drive. Así conserva el mismo ID. Si lo subís como archivo nuevo, cambia el ID y hay que actualizarlo en el nodo Config.
 - **Logo:** lo mismo con `lapulpe.png` (mejor si es cuadrado o con fondo transparente).
+- **Textos de la historia:** `historia_linea_1` (grande) y `historia_linea_2` (chica).
+- **Colores del marco:** `color_marco` (fondo, crema `#F3EBDD`) y `color_texto` (`#1A1A1A`), en formato `#RRGGBB`.
 - **Sacar el logo de los reels:** `"logo_en_reel": false`. Tamaño: `logo_ancho_px` (200 = chico). Transparencia: `logo_opacidad` (1 = sólido).
 - Los cambios se aplican desde el próximo video que suban.
 
@@ -83,14 +100,14 @@ Sumá una cuarta carpeta, `Config`, y subí ahí `marca/datos-negocio.json` y `m
 ### 5. Importar y completar
 - n8n › **Import from file** › `workflow-crudo-a-listos.json`.
 - Nodo **Nuevo video en Crudo**: ID de la carpeta Crudo.
-- Nodo **Config La Pulpe**: IDs de Listos y Procesados, mail de aviso, y los IDs de `datos-negocio.json` y `lapulpe.png` (carpeta Config). Los datos del negocio ya no se cargan acá.
+- Nodo **Config La Pulpe**: IDs de las carpetas Listos/Reels, Listos/Historias, Listos/Feed y Edicion, mail de aviso, y los IDs de `datos-negocio.json`, `lapulpe.png` y `fuente.ttf` (carpeta Recursos). La duración máxima del reel (90 s) y de la historia (15 s) también se cambian acá. Los datos del negocio ya no se cargan acá.
 - En `datos-negocio.json` ya cargué: pulpería, Monumento Histórico y Cultural de Los Hornos (La Plata), en pie desde 1878; Av. 161 esq. Av. 78 (sale del logo); domingos al mediodía; reservas 11 6683-2645; Instagram @paisanosyalmacenes. ⚠️ Confirmá los hashtags base.
 - Asigná las 4 credenciales en los nodos que las piden (aparecen en rojo).
 
 ### 6. Probar (30 min)
 1. Subí a Crudo un video corto (15-20 s) hablando.
 2. En n8n: **Executions** y mirá nodo por nodo. Si falla, el nodo en rojo dice por qué.
-3. Probá también: un video horizontal, uno sin voz, y una foto (debe ignorarla). Fijate que el logo no tape nada importante y que el `.txt` termine con el teléfono.
+3. Probá también: un video horizontal, uno sin voz, y una foto (debe ignorarla). Fijate que el logo no tape nada importante, que el `.txt` termine con el teléfono, que la historia dure 15 s y que la portada elija un cuadro lindo (si no, la cambiamos por un segundo fijo).
 4. Recién ahí: **Active** (publicar el flujo).
 
 Recomendado: en Settings del flujo, poné un **Error Workflow** que te mande un mail a vos si algo falla, así no se entera primero el cliente.
