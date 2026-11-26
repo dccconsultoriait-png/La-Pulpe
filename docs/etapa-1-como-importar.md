@@ -48,4 +48,4 @@ Si todo salió bien, **activá** el flujo nuevo. A partir de ahí revisa las car
 | reels | Cada video: de quién es, en qué estado está, textos generados |
 | pagos | Los cobros de Mercado Pago (se empieza a usar en la etapa 3) |
 | eventos | Registro de novedades: altas, pagos, pausas, cambios de datos |
-| configuracion | Ajustes generales, por ejemplo la fuente por defecto |
+| configuracion | Ajustes generales: el nombre del servicio con el que se firman los mails (`nombre_servicio`) y la fuente por defecto |

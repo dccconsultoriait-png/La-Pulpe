@@ -86,6 +86,7 @@ return [{ json: {
   business_id: fila.business_id,
   cliente_id: fila.cliente_id,
   email_aviso: fila.email_aviso,
+  nombre_servicio: fila.nombre_servicio || '',
   carpeta_reels_id: fila.carpeta_reels_id,
   carpeta_historias_id: fila.carpeta_historias_id,
   carpeta_feed_id: fila.carpeta_feed_id,
@@ -152,7 +153,9 @@ for n in orig['nodes']:
         n['parameters'].pop('mode', None)
     if n['name'] == 'Avisar por mail':
         n['parameters']['message'] = n['parameters']['message'].replace(
-            'Ya está listo tu contenido en la carpeta Listos.', 'Ya está listo tu contenido en tu carpeta Listos.')
+            'Ya está listo tu contenido en la carpeta Listos.', 'Ya está listo tu contenido en tu carpeta Listos.'
+        ).replace('— DCC Consultoría IT', "— {{ $('Config del video').item.json.nombre_servicio }}")
+        assert 'nombre_servicio' in n['parameters']['message']
     body.append(n)
 
 marcar = rpc('Marcar video listo', 'terminar_video', TERMINAR_BODY, [6380, y])
