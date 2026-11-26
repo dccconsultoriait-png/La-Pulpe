@@ -87,6 +87,7 @@ return [{ json: {
   cliente_id: fila.cliente_id,
   email_aviso: fila.email_aviso,
   nombre_servicio: fila.nombre_servicio || '',
+  indicacion_cliente: String(fila.indicacion_cliente || '').trim().slice(0, 1000),
   carpeta_reels_id: fila.carpeta_reels_id,
   carpeta_historias_id: fila.carpeta_historias_id,
   carpeta_feed_id: fila.carpeta_feed_id,
@@ -151,6 +152,15 @@ for n in orig['nodes']:
     if n['name'] == 'Datos del negocio':
         n['parameters']['jsCode'] = DATOS_NEGOCIO
         n['parameters'].pop('mode', None)
+    if n['name'] == 'Claude: título y caption':
+        jb = n['parameters']['jsonBody']
+        viejo = "Si la transcripción está vacía o no se entiende, escribí algo genérico y breve sobre el negocio sin inventar datos.`,"
+        assert viejo in jb
+        jb = jb.replace(viejo, viejo[:-2] + "\\nSi el cliente dejó una indicación (una promoción, un evento, un sorteo, un aniversario), es lo más importante que tiene que comunicar este contenido: usala en el gancho y en el caption, con los datos tal como los escribió (fechas, precios, condiciones). Esos datos sí podés usarlos aunque no estén en la transcripción, pero no agregues nada que no esté ni en la indicación ni en la transcripción.`,")
+        viejo2 = "messages: [{ role: 'user', content: 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]"
+        assert viejo2 in jb, 'msg'
+        jb = jb.replace(viejo2, "messages: [{ role: 'user', content: ($('Config del video').item.json.indicacion_cliente ? 'Indicación del cliente para este video:\\n\"\"\"\\n' + $('Config del video').item.json.indicacion_cliente + '\\n\"\"\"\\n\\n' : '') + 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]")
+        n['parameters']['jsonBody'] = jb
     if n['name'] == 'Avisar por mail':
         n['parameters']['message'] = n['parameters']['message'].replace(
             'Ya está listo tu contenido en la carpeta Listos.', 'Ya está listo tu contenido en tu carpeta Listos.'
