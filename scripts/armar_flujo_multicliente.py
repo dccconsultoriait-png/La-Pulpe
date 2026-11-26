@@ -184,6 +184,9 @@ orden = [n['name'] for n in head] + [
     'Marcar video listo', 'Avisar por mail', 'Limpiar archivos temporales']
 names = {n['name'] for n in nodes}
 assert names == set(orden), (names ^ set(orden))
+# posiciones prolijas: todos en fila, sin huecos
+for i, nombre in enumerate(orden):
+    next(n for n in nodes if n['name'] == nombre)['position'] = [i * 220, 300]
 connections = {a: {'main': [[{'node': b, 'type': 'main', 'index': 0}]]} for a, b in zip(orden, orden[1:])}
 
 out = {
