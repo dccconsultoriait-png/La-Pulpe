@@ -26,7 +26,7 @@ Para deshacerlo, al final el script muestra el comando exacto.
 
 1. En n8n: **Workflows → Import from file** y elegí `videos-todos-los-clientes.json`.
 2. Abrí cada nodo que muestre un aviso rojo de credencial y elegí la que corresponde. Son las mismas que ya usás:
-   - Google Drive, Groq, Anthropic (Claude) y Gmail: las de siempre.
+   - Google Drive, Groq y Gmail: las de siempre. En "Claude: título y caption" elegí la credencial **Anthropic account** (Authentication: Predefined Credential Type → Anthropic).
    - Los nodos **Clientes a revisar**, **Registrar videos nuevos**, **Tomar siguiente video** y **Marcar video listo** llevan la credencial **Supabase (clientes)**.
 3. Guardá el flujo. **Todavía no lo actives.**
 

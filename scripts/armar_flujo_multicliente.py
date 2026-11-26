@@ -164,6 +164,11 @@ for n in orig['nodes']:
         jb = jb.replace("additionalProperties: false\n    }}", "additionalProperties: false\n    } }")
         assert jb.count('}}') == 1, 'quedó un }} dentro de la expresión'
         n['parameters']['jsonBody'] = jb
+        # La clave de Claude está guardada como credencial nativa de Anthropic
+        n['parameters']['authentication'] = 'predefinedCredentialType'
+        n['parameters']['nodeCredentialType'] = 'anthropicApi'
+        n['parameters'].pop('genericAuthType', None)
+        n['credentials'] = {'anthropicApi': {'id': '', 'name': 'Anthropic account'}}
     if n['name'] == 'Avisar por mail':
         n['parameters']['message'] = n['parameters']['message'].replace(
             'Ya está listo tu contenido en la carpeta Listos.', 'Ya está listo tu contenido en tu carpeta Listos.'
