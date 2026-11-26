@@ -160,6 +160,9 @@ for n in orig['nodes']:
         viejo2 = "messages: [{ role: 'user', content: 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]"
         assert viejo2 in jb, 'msg'
         jb = jb.replace(viejo2, "messages: [{ role: 'user', content: ($('Config del video').item.json.indicacion_cliente ? 'Indicación del cliente para este video:\\n\"\"\"\\n' + $('Config del video').item.json.indicacion_cliente + '\\n\"\"\"\\n\\n' : '') + 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]")
+        # n8n corta la expresión en el primer '}}': separar las llaves del schema
+        jb = jb.replace("additionalProperties: false\n    }}", "additionalProperties: false\n    } }")
+        assert jb.count('}}') == 1, 'quedó un }} dentro de la expresión'
         n['parameters']['jsonBody'] = jb
     if n['name'] == 'Avisar por mail':
         n['parameters']['message'] = n['parameters']['message'].replace(
