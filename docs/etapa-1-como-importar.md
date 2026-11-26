@@ -2,6 +2,18 @@
 
 Lleva unos 15 minutos. Hacelo en este orden.
 
+## 0. Agregar FFmpeg a n8n (una sola vez)
+
+Los nodos de edición (los que muestran un "?") necesitan FFmpeg y el nodo Execute Command, que n8n trae apagado.
+
+1. Entrá a [hPanel → VPS](https://hpanel.hostinger.com/vps), tocá **Administrar** en tu servidor y después el botón **Terminal del navegador** (arriba a la derecha).
+2. Pegá esta línea y apretá Enter:
+   `curl -fsSL https://raw.githubusercontent.com/dccconsultoriait-png/La-Pulpe/claude/project-thread-9gacdu/servidor/instalar-ffmpeg.sh | bash`
+3. Esperá a que diga **LISTO** (2 o 3 minutos). Si dice ERROR, mandá una captura.
+4. Volvé a n8n y recargá la página: los "?" tienen que desaparecer.
+
+Para deshacerlo: `cd /docker/n8n && rm docker-compose.override.yml && docker compose up -d`.
+
 ## 1. Conectar n8n con Supabase (una sola vez)
 
 1. En Supabase, entrá al proyecto y andá a **Project Settings → API Keys**. Copiá la clave **secret** (en proyectos viejos se llama `service_role`). Es secreta: no la pegues en ningún chat.
