@@ -198,8 +198,8 @@ $('file').addEventListener('change',e=>{
   $('fname').textContent=f.name+' · '+(f.size/1048576).toFixed(1)+' MB';
 });
 const steps=['Recibido','Pasando el audio a texto','Cortando silencios y trabadas','Subtítulos y título','Escribiendo el texto para publicar'];
-const titles=['La milanesa que pide todo el barrio','Así arranca un día en la cocina','El plato del día de hoy'];
-const subs=['Se empana a mano, <em>todos los días</em>','A las 9 ya está <em>el caldo en el fuego</em>','Vení antes de las 13, <em>que vuela</em>'];
+const titles=['La milanesa que pide todo el barrio','Así arranca un día en la cocina','El domingo al mediodía, en la Pulpe'];
+const subs=['Se empana a mano, <em>todos los días</em>','A las 9 ya está <em>el caldo en el fuego</em>','Desde 1878, <em>en Los Hornos</em>'];
 $('send').addEventListener('click',()=>{
   const n=count++,vid=url,ped=$('pedido').value.trim();
   url=null;$('pv').hidden=true;$('pvv').removeAttribute('src');$('fname').textContent='';$('file').value='';$('pedido').value='';
@@ -222,7 +222,7 @@ function addReady(n,vid){
   if(!ready)$('ready').innerHTML='';
   ready++;badge('b-listos',ready);
   const i=n%3,t=titles[i];
-  const text=t+'\n\nCocina de bodegón, como la de antes. Etiquetá a quien te debe un almuerzo.\n\n#bodegon #pulperia #comidacasera';
+  const text=t+'\n\nEn pie desde 1878 en Los Hornos. Te esperamos el domingo al mediodía. Etiquetá a quien te debe un almuerzo.\n\n#LaPulpe #pulperia #comidacasera #LosHornos';
   const r=document.createElement('div');r.className='reel';
   r.innerHTML='<div class="frame">'+(vid?'<video muted playsinline loop autoplay></video>':'<svg class="fig" viewBox="0 0 100 120" aria-hidden="true"><circle cx="50" cy="34" r="20" fill="#e9b99a"/><path d="M14 120c0-30 16-52 36-52s36 22 36 52z" fill="#fff"/><path d="M30 120V84h40v36z" fill="#FF5A4E"/></svg>')+'<div class="ttl"></div><div class="sub">'+subs[i]+'</div></div>'+
   '<div class="rb"><b>Reel '+(n+1)+' · 0:42</b><div class="cap"></div><div class="row"><button class="btn p" data-a="copy">Copiar texto</button><button class="btn g" data-a="dl">Descargar</button></div><div class="row" style="margin-top:8px"><button class="btn g" data-a="up">Ya lo subí</button><button class="btn g" data-a="ch">Pedir cambio</button></div><p class="note" aria-live="polite"></p></div>';

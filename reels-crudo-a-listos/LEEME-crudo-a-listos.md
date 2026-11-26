@@ -22,7 +22,7 @@ v1, 26 nov 2026. ⚠️ = falta verificar o confirmar antes de usar.
 | `workflow-crudo-a-listos.json` | El flujo de n8n para importar (20 nodos) |
 | `Dockerfile` | Agrega FFmpeg a tu n8n de Hostinger |
 | `ejemplo-subtitulos.png` | Cómo quedan los subtítulos (prueba con video de barras) |
-| `prototipo/index.html` | Prototipo de la app para mostrarle al cliente (se abre en el navegador, con ejemplos de bodegón) |
+| `prototipo/index.html` | Prototipo de la app para mostrarle al cliente (se abre en el navegador, con ejemplos de La Pulpe) |
 
 Lo que probé acá: los comandos de FFmpeg (sacar audio y armar el reel 1080×1920 con subtítulos, en ~2 s para un video de 6 s), el código que arma los subtítulos y el que lee la respuesta de Claude. **No lo probé dentro de n8n ni contra Drive, Groq o Claude de verdad:** eso es el paso 6.
 
@@ -70,7 +70,7 @@ En el Drive **del cliente** (o en el tuyo, compartido con él): `La Pulpe Reels/
 ### 5. Importar y completar
 - n8n › **Import from file** › `workflow-crudo-a-listos.json`.
 - Nodo **Nuevo video en Crudo**: ID de la carpeta Crudo.
-- Nodo **Config La Pulpe**: IDs de Listos y Procesados, mail de aviso, hashtags. Ya cargué que es una pulpería histórica tipo restorán bodegón (milanesas, plato del día, comida casera, argentinidad, tradición, fuego, asados, carne y vinos, música en vivo, reservas para el domingo) con ese tono para los captions. ⚠️ Confirmá el Instagram @paisanosyalmacenes y los hashtags base.
+- Nodo **Config La Pulpe**: IDs de Listos y Procesados, mail de aviso, hashtags. Ya cargué que es una pulpería, Monumento Histórico y Cultural de Los Hornos (La Plata), en pie desde 1878, que abre los domingos al mediodía (comida casera, argentinidad, tradición, fuego, asados, carne y vinos, música en vivo, reservas para el domingo) con ese tono para los captions. Instagram confirmado: @paisanosyalmacenes. ⚠️ Confirmá los hashtags base.
 - Asigná las 4 credenciales en los nodos que las piden (aparecen en rojo).
 
 ### 6. Probar (30 min)
