@@ -19,7 +19,7 @@ create table if not exists public.altas_pendientes (
 alter table public.altas_pendientes enable row level security;
 
 insert into public.configuracion (clave, valor, nota) values
-  ('email_admin', 'dcc.consultoria.it@gmail.com', 'Recibe copia de cada alta y baja'),
+  ('email_admin', '', 'Recibe copia oculta de cada mail de alta, pago y baja (se carga en Supabase, no en el repositorio)'),
   ('carpeta_clientes_id', '', 'Carpeta de Drive donde se crean las carpetas de cada cliente (vacío = Mi unidad)'),
   ('dias_gracia', '3', 'Días de gracia cuando falla el cobro'),
   ('dias_pausa_hasta_baja', '30', 'Días en pausa hasta la baja')
