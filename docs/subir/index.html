@@ -116,7 +116,8 @@ const fecha = s => s ? new Date(s).toLocaleString('es-AR', {weekday:'short', day
 const mb = n => (n / 1048576).toFixed(1) + ' MB';
 
 async function api(accion, extra = {}) {
-  const r = await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion, t: token, ...extra})});
+  // Va como formulario simple (sin JSON) para que el navegador no tenga que pedir permiso antes (CORS)
+  const r = await fetch(API, {method:'POST', body: new URLSearchParams({d: JSON.stringify({accion, t: token, ...extra})})});
   if (!r.ok) throw new Error('El servidor respondió ' + r.status);
   const j = await r.json();
   return Array.isArray(j) ? j[0] : j;

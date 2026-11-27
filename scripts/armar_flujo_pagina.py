@@ -23,9 +23,12 @@ def nid(nombre):
 
 
 LEER_PEDIDO = r"""// Lee lo que manda la página y arma la llamada a Supabase
-const crudo = $json.body ?? {};
-let b = crudo;
-if (typeof crudo === 'string') { try { b = JSON.parse(crudo); } catch (e) { b = {}; } }
+// La página manda un formulario con un campo "d" que trae el JSON
+const leer = x => { if (typeof x !== 'string') return x; try { return JSON.parse(x); } catch (e) { return null; } };
+const body = leer($json.body ?? {}) || {};
+const query = $json.query || {};
+let b = leer(body.d) || leer(query.d) || body;
+if (!b || typeof b !== 'object') b = {};
 const t = /^[0-9a-f-]{36}$/i.test(String(b.t || '')) ? String(b.t) : '00000000-0000-0000-0000-000000000000';
 const accion = ['info', 'preparar', 'confirmar'].includes(b.accion) ? b.accion : 'info';
 const origin = String(($json.headers || {}).origin || '__ORIGEN__');
@@ -194,7 +197,7 @@ def main(salida):
         'nodes': nodos,
         'connections': conexiones,
         'settings': {'executionOrder': 'v1', 'timezone': 'America/Argentina/Buenos_Aires',
-                     'saveDataErrorExecution': 'all', 'saveDataSuccessExecution': 'none'},
+                     'saveDataErrorExecution': 'all', 'saveDataSuccessExecution': 'all'},
         'pinData': {},
     }
     with open(salida, 'w', encoding='utf-8') as f:

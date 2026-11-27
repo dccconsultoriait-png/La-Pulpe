@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Lee lo que manda la página y arma la llamada a Supabase\nconst crudo = $json.body ?? {};\nlet b = crudo;\nif (typeof crudo === 'string') { try { b = JSON.parse(crudo); } catch (e) { b = {}; } }\nconst t = /^[0-9a-f-]{36}$/i.test(String(b.t || '')) ? String(b.t) : '00000000-0000-0000-0000-000000000000';\nconst accion = ['info', 'preparar', 'confirmar'].includes(b.accion) ? b.accion : 'info';\nconst origin = String(($json.headers || {}).origin || 'https://dccconsultoriait-png.github.io');\n\nlet rpc, cuerpo;\nif (accion === 'preparar') {\n  rpc = 'preparar_subida';\n  cuerpo = { p_token: t, p_tipo: String(b.tipo || ''), p_nota: String(b.nota || '').slice(0, 1000),\n             p_archivos: Array.isArray(b.archivos) ? b.archivos.slice(0, 10) : [] };\n} else if (accion === 'confirmar') {\n  rpc = 'confirmar_subida';\n  cuerpo = { p_token: t, p_pedido_id: /^[0-9a-f-]{36}$/i.test(String(b.pedido_id || '')) ? b.pedido_id : '00000000-0000-0000-0000-000000000000',\n             p_archivos: Array.isArray(b.archivos) ? b.archivos.slice(0, 10) : [] };\n} else {\n  rpc = 'pagina_cliente';\n  cuerpo = { p_token: t };\n}\nreturn [{ json: { accion, rpc, cuerpo, nota: String(b.nota || '').slice(0, 1000), origin } }];\n"
+        "jsCode": "// Lee lo que manda la página y arma la llamada a Supabase\n// La página manda un formulario con un campo \"d\" que trae el JSON\nconst leer = x => { if (typeof x !== 'string') return x; try { return JSON.parse(x); } catch (e) { return null; } };\nconst body = leer($json.body ?? {}) || {};\nconst query = $json.query || {};\nlet b = leer(body.d) || leer(query.d) || body;\nif (!b || typeof b !== 'object') b = {};\nconst t = /^[0-9a-f-]{36}$/i.test(String(b.t || '')) ? String(b.t) : '00000000-0000-0000-0000-000000000000';\nconst accion = ['info', 'preparar', 'confirmar'].includes(b.accion) ? b.accion : 'info';\nconst origin = String(($json.headers || {}).origin || 'https://dccconsultoriait-png.github.io');\n\nlet rpc, cuerpo;\nif (accion === 'preparar') {\n  rpc = 'preparar_subida';\n  cuerpo = { p_token: t, p_tipo: String(b.tipo || ''), p_nota: String(b.nota || '').slice(0, 1000),\n             p_archivos: Array.isArray(b.archivos) ? b.archivos.slice(0, 10) : [] };\n} else if (accion === 'confirmar') {\n  rpc = 'confirmar_subida';\n  cuerpo = { p_token: t, p_pedido_id: /^[0-9a-f-]{36}$/i.test(String(b.pedido_id || '')) ? b.pedido_id : '00000000-0000-0000-0000-000000000000',\n             p_archivos: Array.isArray(b.archivos) ? b.archivos.slice(0, 10) : [] };\n} else {\n  rpc = 'pagina_cliente';\n  cuerpo = { p_token: t };\n}\nreturn [{ json: { accion, rpc, cuerpo, nota: String(b.nota || '').slice(0, 1000), origin } }];\n"
       },
       "name": "Leer pedido",
       "type": "n8n-nodes-base.code",
@@ -276,7 +276,7 @@
     "executionOrder": "v1",
     "timezone": "America/Argentina/Buenos_Aires",
     "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "none"
+    "saveDataSuccessExecution": "all"
   },
   "pinData": {}
 }
