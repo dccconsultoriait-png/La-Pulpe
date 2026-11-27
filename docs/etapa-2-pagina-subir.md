@@ -4,7 +4,7 @@ Cada cliente tiene un link personal para subir videos o fotos, dejar una indicac
 y ver lo que está en proceso y lo que ya está listo.
 
 ```
-https://dccconsultoriait-png.github.io/La-Pulpe/subir/?t=<token del cliente>
+https://<sitio>.netlify.app/?t=<token del cliente>
 ```
 
 El token está en Supabase, tabla `businesses`, columna `token_subida`. No lo publiques:
@@ -27,8 +27,8 @@ Lo que pase del cupo queda en la fila y se edita desde el lunes.
 
 ## Puesta en marcha (una sola vez)
 
-1. **Publicar la página**: en GitHub, Settings > Pages > "Deploy from a branch",
-   elegí la rama y la carpeta `/docs`, y Save.
+1. **Publicar la página** (gratis): en https://app.netlify.com/drop arrastrá un zip con
+   `docs/subir/index.html` adentro (como `index.html`). Para actualizarla, se vuelve a arrastrar.
 2. **Importar el flujo** `n8n/pagina-subida-api.json` en n8n. Asignale la credencial de Supabase
    en "Llamar a Supabase" y la de Google Drive en "Abrir subida en Drive". Guardalo y activalo.
 3. Abrí el link del cliente y probá subir algo.

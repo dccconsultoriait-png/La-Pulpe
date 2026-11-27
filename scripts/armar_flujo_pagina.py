@@ -2,7 +2,7 @@
 
 Uso: python3 scripts/armar_flujo_pagina.py n8n/pagina-subida-api.json
 
-La página (docs/subir/index.html, publicada en GitHub Pages) llama a un solo webhook
+La página (docs/subir/index.html, publicada en Netlify) llama a un solo webhook
 con { accion, t, ... }:
   - info       -> datos del cliente, cupo y sus pedidos
   - preparar   -> anota el pedido y abre una subida reanudable en el Drive del cliente
@@ -76,7 +76,7 @@ def main(salida):
                 'httpMethod': 'POST',
                 'path': 'multiredes-api',
                 'responseMode': 'responseNode',
-                'options': {'allowedOrigins': ORIGEN_PAGINA},
+                'options': {'allowedOrigins': '*'},  # la API se protege con el token de cada cliente
             },
             'name': 'Pedido de la página',
             'type': 'n8n-nodes-base.webhook',

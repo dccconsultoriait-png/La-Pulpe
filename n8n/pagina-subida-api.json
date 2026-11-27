@@ -7,7 +7,7 @@
         "path": "multiredes-api",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "https://dccconsultoriait-png.github.io"
+          "allowedOrigins": "*"
         }
       },
       "name": "Pedido de la página",
