@@ -129,22 +129,40 @@ function detalle(p) {
   }
 })();
 
-// Logo: se achica a 800 px en PNG antes de mandarlo
+// Logo: se achica a 800 px en PNG antes de mandarlo.
+// Primero prueba createImageBitmap; si el navegador no puede, usa una imagen común.
+function cargarImagen(f) {
+  return new Promise((ok, mal) => {
+    const url = URL.createObjectURL(f);
+    const im = new Image();
+    im.onload = () => ok(im);
+    im.onerror = () => mal(new Error('no se pudo leer'));
+    im.src = url;
+  });
+}
+async function leerLogo(f) {
+  let img;
+  try { img = await createImageBitmap(f); } catch (_) { img = await cargarImagen(f); }
+  const w = img.width || img.naturalWidth || 800, h = img.height || img.naturalHeight || 800;
+  const k = Math.min(1, 800 / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/png');
+}
 $('logo').addEventListener('change', async e => {
   const f = e.target.files[0];
+  e.target.value = '';   // así se puede volver a elegir el mismo archivo
   if (!f) return;
+  $('error').textContent = 'Leyendo el logo…';
   try {
-    const img = await createImageBitmap(f);
-    const k = Math.min(1, 800 / Math.max(img.width, img.height));
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    const url = c.toDataURL('image/png');
+    const url = await leerLogo(f);
     logo = url.split(',')[1];
     $('logo-pv').src = url; $('logo-pv').hidden = false;
     $('error').textContent = '';
   } catch (_) {
-    logo = null; $('error').textContent = 'No pude leer esa imagen. Probá con otra (JPG o PNG).';
+    logo = null; $('logo-pv').hidden = true;
+    $('error').textContent = 'No pude leer esa imagen (' + (f.name || 'archivo') + '). Probá con otra en JPG o PNG.';
   }
 });
 
@@ -156,8 +174,10 @@ $('f').addEventListener('submit', async e => {
   if (!$('nombre').value.trim()) falta.push('el nombre del negocio');
   if (!$('rubro').value.trim()) falta.push('a qué se dedica');
   if (!logo) falta.push('el logo');
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($('email').value.trim())) falta.push('un email válido');
-  const emp = $('email_mp').value.trim();
+  $('email').value = $('email').value.trim().replace(/[.,;]+$/, '');
+  $('email_mp').value = $('email_mp').value.trim().replace(/[.,;]+$/, '');
+  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test($('email').value)) falta.push('un email válido');
+  const emp = $('email_mp').value;
   if (emp && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emp)) falta.push('un email de Mercado Pago válido');
   if (!$('acepto').checked) falta.push('aceptar las condiciones');
   if (falta.length) { $('error').textContent = 'Falta: ' + falta.join(', ') + '.'; return; }
