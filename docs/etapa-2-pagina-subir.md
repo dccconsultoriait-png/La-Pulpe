@@ -32,3 +32,18 @@ Lo que pase del cupo queda en la fila y se edita desde el lunes.
 2. **Importar el flujo** `n8n/pagina-subida-api.json` en n8n. Asignale la credencial de Supabase
    en "Llamar a Supabase" y la de Google Drive en "Abrir subida en Drive". Guardalo y activalo.
 3. Abrí el link del cliente y probá subir algo.
+
+## Fotos
+
+El flujo `n8n/fotos-todos-los-clientes.json` (se arma con `scripts/armar_flujo_fotos.py`) edita
+los pedidos de fotos, de a uno, en paralelo con los videos:
+
+- **1 foto**: post 4:5 y historia 9:16, con el mismo marco, logo y fuente que la portada de los videos.
+- **2 a 10 fotos**: carrusel 4:5. Claude mira las fotos, elige el orden (la mejor de portada) y escribe
+  el texto de cada placa. Se agrega una placa final con los datos del negocio, y una historia.
+- La página achica las fotos y las endereza antes de subirlas (máx. 2400 px, JPG).
+- Las piezas van a Listos/Feed (y la historia a Listos/Historias). Se avisa por mail con los links.
+
+Para activarlo: importá el flujo, asigná las credenciales de Supabase, Google Drive, Anthropic y Gmail,
+guardalo y activalo. En Supabase, cargá la dirección de la página en `configuracion.url_pagina`
+para que el mail incluya el link.
