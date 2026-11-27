@@ -98,7 +98,6 @@ if (p.mensual) {
   mp_url = '__MP__/checkout/preferences';
   mp_body = {
     items: [{ id: p.id, title: `${r.servicio} - ${p.nombre}`, quantity: 1, unit_price: Number(p.precio), currency_id: 'ARS' }],
-    payer: { email: f.email_mp || r.email },
     external_reference: r.business_id,
     back_urls: { success: volver, failure: volver, pending: volver },
     auto_return: 'approved',
