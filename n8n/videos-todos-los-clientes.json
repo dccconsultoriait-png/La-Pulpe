@@ -1,0 +1,1187 @@
+{
+  "name": "Videos: Crudo a Listos (todos los clientes) v2.0",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "name": "Cada 2 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "id": "1a9bb0ca-0d70-58f8-a170-7f96b2cd7b87"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/clientes_para_revisar",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Clientes a revisar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "6cc47985-6f2d-59f4-b97c-40af8a58274a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Arma una sola búsqueda en Drive con las carpetas Crudo de todos los clientes activos ===\nconst clientes = $input.all().map(i => i.json).filter(c => c && c.business_id && c.carpeta_crudo_id);\nif (!clientes.length) return [];   // no hay clientes activos: el flujo termina acá\nconst mapa = {};\nfor (const c of clientes) mapa[c.carpeta_crudo_id] = c.business_id;\nconst esc = s => String(s).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"\\\\'\");\nconst carpetas = Object.keys(mapa).map(id => `'${esc(id)}' in parents`).join(' or ');\nreturn [{ json: {\n  q: `(${carpetas}) and mimeType contains 'video/' and trashed = false`,\n  mapa,\n}}];"
+      },
+      "name": "Armar búsqueda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "id": "09e3e7a8-b47f-57e2-a2c2-1dbce1c4ca61"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ $json.q }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "name": "Buscar videos en Crudo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        660,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "b3f6b79d-5868-5ce2-a9b7-8a7bf23198f1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Arma la lista de videos encontrados, con el cliente al que pertenecen ===\nconst mapa = $('Armar búsqueda').first().json.mapa || {};\nconst MAX_MB = 500;   // evita archivos gigantes\nconst videos = [];\nfor (const item of $input.all()) {\n  const f = item.json || {};\n  if (!f.id || !String(f.mimeType || '').startsWith('video/')) continue;\n  if (Number(f.size || 0) / 1024 / 1024 > MAX_MB) continue;\n  const carpeta = (f.parents || []).find(p => mapa[p]);\n  if (!carpeta) continue;\n  videos.push({ business_id: mapa[carpeta], file_id: f.id, file_name: f.name || 'video.mp4' });\n}\nreturn [{ json: { videos } }];   // aunque no haya nuevos, seguimos: puede haber videos en espera"
+      },
+      "name": "Videos encontrados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "id": "f60e80f8-9e0a-5898-89d3-4f48577e63df"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/registrar_videos_nuevos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_videos: $json.videos }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Registrar videos nuevos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "345a982f-1d7f-57cb-88d1-a2330b88e344"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/tomar_siguiente_video",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Tomar siguiente video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "2b11df30-ddc9-5175-81c7-312e96a8e4c4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === CONFIG DEL VIDEO: todo sale de Supabase, nada de un cliente está escrito acá ===\n// Para cambiar datos de un cliente se edita su fila en Supabase (tabla businesses), no n8n.\n// (Supabase puede devolver la fila sola o envuelta con el nombre de la función)\nconst fila = $input.all().map(i => i.json)\n  .map(j => (j && j.reel_id) ? j : (j && j.tomar_siguiente_video) || null)\n  .find(j => j && j.reel_id);\nif (!fila) return [];   // no hay videos para procesar ahora (o ya hay uno en proceso)\n\nconst DEFAULTS = {\n  duracion_max_seg: 90,       // reel\n  historia_max_seg: 15,       // historia\n  subs_palabras_por_bloque: 4,\n  subs_mayusculas: true,\n};\nconst ajustes = { ...DEFAULTS, ...(fila.ajustes || {}) };\nfor (const k of ['carpeta_reels_id', 'carpeta_historias_id', 'carpeta_feed_id', 'logo_id', 'fuente_id', 'email_aviso']) {\n  if (!fila[k]) throw new Error(`Al cliente ${fila.cliente_id} le falta \"${k}\" en Supabase`);\n}\nconst seguro = s => String(s).replace(/[^a-zA-Z0-9_-]/g, '_');\nconst ext = (String(fila.file_name || '').match(/\\.[a-zA-Z0-9]+$/) || ['.mp4'])[0].toLowerCase();\nconst dir = `/home/node/.n8n-files/videos/${seguro(fila.cliente_id)}/${seguro(fila.file_id)}`;\nconst fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());\nreturn [{ json: {\n  ...ajustes,\n  reel_id: fila.reel_id,\n  business_id: fila.business_id,\n  cliente_id: fila.cliente_id,\n  email_aviso: fila.email_aviso,\n  nombre_servicio: fila.nombre_servicio || '',\n  indicacion_cliente: String(fila.indicacion_cliente || '').trim().slice(0, 1000),\n  carpeta_reels_id: fila.carpeta_reels_id,\n  carpeta_historias_id: fila.carpeta_historias_id,\n  carpeta_feed_id: fila.carpeta_feed_id,\n  logo_id: fila.logo_id,\n  fuente_id: fila.fuente_id,\n  datos: fila.datos || {},\n  file_id: fila.file_id,\n  file_name: fila.file_name,\n  dir,\n  crudo: `${dir}/crudo${ext}`,\n  fecha,\n}}];"
+      },
+      "name": "Config del video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "id": "4d306793-7b7c-5702-ab7c-18863c401dbb"
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p \"{{ $('Config del video').item.json.dir }}\""
+      },
+      "id": "883cdd36-8bd6-540c-a183-4259710e64ce",
+      "name": "Preparar carpeta de trabajo",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Datos del negocio: vienen de Supabase (columna \"datos\" del cliente) ===\nconst d = { ...($('Config del video').first().json.datos || {}) };\nif (!d.nombre) throw new Error('Falta \"nombre\" en los datos del cliente (Supabase, columna datos)');\nd.hashtags_base = Array.isArray(d.hashtags_base) ? d.hashtags_base : [];\n// Pie fijo del caption: lo agregamos nosotros, no Claude, para que el teléfono nunca salga mal\nd.pie_caption = [\n  d.telefono_reservas ? `📞 Reservas: ${d.telefono_reservas}` : '',\n  d.direccion ? `📍 ${d.direccion}` : '',\n  d.horario ? `🕛 ${d.horario}` : '',\n].filter(Boolean).join('\\n');\nconst hex = (c, def) => (/^#?[0-9a-fA-F]{6}$/.test(String(c || '')) ? String(c).replace('#', '') : def);\nd.ff_marco = '0x' + hex(d.color_marco, 'F3EBDD');   // formato de color para FFmpeg\nd.ff_texto = '0x' + hex(d.color_texto, '1A1A1A');\nreturn [{ json: d }];"
+      },
+      "id": "0dc62760-8f6d-57b9-87e7-1e5b4f1ef950",
+      "name": "Datos del negocio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.logo_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "6075d649-e4ff-536d-8937-1203a1d06796",
+      "name": "Bajar logo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2200,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config del video').item.json.dir }}/logo.png",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "46b1ff84-9af0-50cb-aaf0-1dfe84a53e74",
+      "name": "Guardar logo en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.fuente_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "776a17b5-e799-5518-865d-53a827337bc4",
+      "name": "Bajar fuente",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2640,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config del video').item.json.dir }}/fuente.ttf",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "7cad5eda-3631-58b9-9a20-7df2c901cc77",
+      "name": "Guardar fuente en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.file_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "a3718afe-146c-5c66-a38d-e8b647f4c81d",
+      "name": "Bajar video crudo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3080,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config del video').item.json.crudo }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "b997878a-4279-5bc8-a640-02c9ec513fcb",
+      "name": "Guardar crudo en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -hide_banner -loglevel error -y -i \"{{ $('Config del video').item.json.crudo }}\" -vn -ac 1 -ar 16000 -b:a 48k \"{{ $('Config del video').item.json.dir }}/audio.mp3\""
+      },
+      "id": "6c04f49a-8cb0-5a5f-a5e7-636d61435b75",
+      "name": "Sacar audio (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Config del video').item.json.dir }}/audio.mp3",
+        "options": {}
+      },
+      "id": "3282eca0-ed76-504a-bfcd-0a94b89b4107",
+      "name": "Leer audio",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3-turbo"
+            },
+            {
+              "name": "language",
+              "value": "es"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            },
+            {
+              "name": "timestamp_granularities[]",
+              "value": "word"
+            },
+            {
+              "name": "timestamp_granularities[]",
+              "value": "segment"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "7d3d27a3-b4df-52b9-a8bd-369489897ec3",
+      "name": "Transcribir (Groq Whisper)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3960,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Groq API (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// === Code node \"Armar subtítulos\" (n8n) ===\nconst cfg = $('Config del video').item.json;\nconst r = $input.item.json;            // respuesta de Groq (verbose_json)\nconst texto = (r.text || '').trim();\n\nfunction ts(s) {\n  const ms = Math.max(0, Math.round(s * 1000));\n  const h = String(Math.floor(ms / 3600000)).padStart(2, '0');\n  const m = String(Math.floor(ms / 60000) % 60).padStart(2, '0');\n  const sec = String(Math.floor(ms / 1000) % 60).padStart(2, '0');\n  const mil = String(ms % 1000).padStart(3, '0');\n  return `${h}:${m}:${sec},${mil}`;\n}\n\n// Bloques cortos para reel: hasta N palabras o ~1,8 s por bloque\nconst MAX_PALABRAS = cfg.subs_palabras_por_bloque || 4;\nconst MAX_SEG = 1.8;\nconst bloques = [];\nconst words = Array.isArray(r.words) ? r.words : [];\nif (words.length) {\n  let act = null;\n  for (const w of words) {\n    const palabra = String(w.word || '').trim();\n    if (!palabra) continue;\n    if (!act || act.n >= MAX_PALABRAS || (w.end - act.start) > MAX_SEG) {\n      if (act) bloques.push(act);\n      act = { start: w.start, end: w.end, text: palabra, n: 1 };\n    } else {\n      act.end = w.end; act.text += ' ' + palabra; act.n++;\n    }\n  }\n  if (act) bloques.push(act);\n} else if (Array.isArray(r.segments)) {\n  for (const s of r.segments) {\n    const t = String(s.text || '').trim();\n    if (t) bloques.push({ start: s.start, end: s.end, text: t });\n  }\n}\n\nconst srt = bloques\n  .map((b, i) => `${i + 1}\\n${ts(b.start)} --> ${ts(b.end)}\\n${cfg.subs_mayusculas ? b.text.toUpperCase() : b.text}\\n`)\n  .join('\\n');\n\nreturn {\n  json: { transcripcion: texto, tiene_subs: bloques.length > 0, cant_bloques: bloques.length },\n  binary: {\n    data: {\n      data: Buffer.from(srt || '1\\n00:00:00,000 --> 00:00:00,500\\n \\n', 'utf8').toString('base64'),\n      mimeType: 'application/x-subrip',\n      fileName: 'subs.srt',\n    },\n  },\n};\n"
+      },
+      "id": "341387b1-4438-5120-9b89-83e0ed4a3cb6",
+      "name": "Armar subtítulos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config del video').item.json.dir }}/subs.srt",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "580b5863-fac2-5938-95db-f5452db77656",
+      "name": "Guardar subtítulos",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2026-10-21"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-opus-5-5',\n  max_tokens: 4000,\n  output_config: {\n    effort: 'low',\n    format: { type: 'json_schema', schema: {\n      type: 'object',\n      properties: {\n        titulo: { type: 'string' },\n        gancho: { type: 'string' },\n        caption: { type: 'string' },\n        hashtags: { type: 'array', items: { type: 'string' } }\n      },\n      required: ['titulo', 'gancho', 'caption', 'hashtags'],\n      additionalProperties: false\n    } }\n  },\n  system: `Sos el community manager de ${$('Datos del negocio').item.json.nombre} (${$('Datos del negocio').item.json.descripcion}; rubro: ${$('Datos del negocio').item.json.rubro}; abre: ${$('Datos del negocio').item.json.horario}). Tono: ${$('Datos del negocio').item.json.tono}.\\nA partir de la transcripción de un reel escribís:\\n- titulo: corto (máx. 8 palabras), para nombrar el archivo.\\n- gancho: texto para la portada del reel, máx. 6 palabras, que dé ganas de verlo.\\n- caption: 2 a 4 oraciones para Instagram, con un llamado a la acción al final (ej. seguinos, escribinos, vení). Podés usar 1 o 2 emojis.\\n- hashtags: 3 a 6 hashtags relevantes en español, con #.\\nNo escribas teléfono, dirección ni horario en el caption: se agregan solos al final. REGLAS: no inventes precios, fechas de reservas, promociones, horarios, direcciones ni datos que no estén en la transcripción. Si la transcripción está vacía o no se entiende, escribí algo genérico y breve sobre el negocio sin inventar datos.\\nSi el cliente dejó una indicación (una promoción, un evento, un sorteo, un aniversario), es lo más importante que tiene que comunicar este contenido: usala en el gancho y en el caption, con los datos tal como los escribió (fechas, precios, condiciones). Esos datos sí podés usarlos aunque no estén en la transcripción, pero no agregues nada que no esté ni en la indicación ni en la transcripción.\\nEl video puede haberse grabado días antes de publicarse: no afirmes cosas que pueden haber cambiado (lleno, todo reservado, agotado, últimos lugares, \"hoy\", \"mañana\" o fechas que pueden haber pasado), salvo que el cliente lo confirme en su indicación. Hablá de lo que se ve y se ofrece y de lo que viene.`,\n  messages: [{ role: 'user', content: ($('Config del video').item.json.indicacion_cliente ? 'Indicación del cliente para este video:\\n\"\"\"\\n' + $('Config del video').item.json.indicacion_cliente + '\\n\"\"\"\\n\\n' : '') + 'Transcripción del reel:\\n\"\"\"\\n' + ($('Armar subtítulos').item.json.transcripcion || '(sin voz)') + '\\n\"\"\"' }]\n}) }}",
+        "options": {
+          "timeout": 120000
+        },
+        "nodeCredentialType": "anthropicApi"
+      },
+      "id": "6743dff1-d5e8-54d1-a25a-b134b65eaed0",
+      "name": "Claude: título y caption",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4620,
+        300
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// === Code node \"Leer respuesta de Claude\" ===\nconst r = $input.item.json;\nif (r.stop_reason === 'refusal') throw new Error('Claude rechazó el pedido: revisar el video a mano');\nconst bloque = (r.content || []).find(b => b.type === 'text');\nif (!bloque) throw new Error('Claude no devolvió texto');\nconst d = JSON.parse(bloque.text);\nconst cfg = $('Config del video').item.json;\nconst datos = $('Datos del negocio').item.json;\nconst hashtags = [...new Set([...(datos.hashtags_base || []), ...(d.hashtags || [])])].join(' ');\nconst limpio = String(d.titulo || 'reel').replace(/[\\\\/:*?\"<>|]/g, '').slice(0, 60).trim();\n// Portada: el gancho partido en renglones de ~18 letras (máx. 3)\nconst palabras = String(d.gancho || d.titulo || datos.nombre).toUpperCase().split(/\\s+/).filter(Boolean);\nconst renglones = [];\nfor (const p of palabras) {\n  const ult = renglones[renglones.length - 1];\n  if (ult !== undefined && (ult + ' ' + p).length <= 18) renglones[renglones.length - 1] = ult + ' ' + p;\n  else renglones.push(p);\n}\nconst b64 = t => Buffer.from(String(t || ''), 'utf8').toString('base64');\nreturn { json: {\n  portada_b64: b64(renglones.slice(0, 3).join('\\n')),\n  portada_pie_b64: b64([datos.instagram, datos.telefono_reservas ? 'Reservas ' + datos.telefono_reservas : ''].filter(Boolean).join('  ·  ')),\n  hist1_b64: b64(datos.historia_linea_1 || (datos.telefono_reservas ? 'RESERVAS ' + datos.telefono_reservas : datos.nombre)),\n  hist2_b64: b64(datos.historia_linea_2 || datos.horario || ''),\n  titulo: d.titulo,\n  gancho: d.gancho,\n  caption: [String(d.caption || '').trim(), datos.pie_caption].filter(Boolean).join('\\n\\n'),\n  hashtags,\n  nombre_archivo: `${cfg.fecha} - ${limpio}`,\n}};"
+      },
+      "id": "1cc7024f-ed22-59d3-b478-187c08a7a1b3",
+      "name": "Leer respuesta de Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ (() => {\n  const c = $('Config del video').item.json;\n  const d = $('Datos del negocio').item.json;\n  const r = $('Leer respuesta de Claude').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Serif,FontSize=15,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const sub = subs ? `,subtitles=${c.dir}/subs.srt:fontsdir=${c.dir}:force_style='${estilo}'` : '';\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  // REEL 9:16: video entero, subtítulos, marco fino del color de marca y logo arriba a la derecha\n  const logo = d.logo_en_reel !== false;\n  const ancho = Number(d.logo_ancho_px) || 200;\n  const opac = Math.min(1, Math.max(0.1, Number(d.logo_opacidad) || 0.9));\n  const base = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1${sub},drawbox=x=0:y=0:w=iw:h=ih:color=${d.ff_marco}:t=14`;\n  const fc = logo\n    ? `[0:v]${base}[v];[1:v]scale=${ancho}:-1,format=rgba,colorchannelmixer=aa=${opac}[lg];[v][lg]overlay=W-w-48:220:format=auto,format=yuv420p[out]`\n    : `[0:v]${base},format=yuv420p[out]`;\n  return `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\"` + (logo ? ` -i \"${c.dir}/logo.png\"` : '') +\n    ` -t ${c.duracion_max_seg} -filter_complex \"${fc}\" -map \"[out]\" -map 0:a? -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:a aac -b:a 128k -ar 48000 -c:v libx264 -preset veryfast -crf 23 -movflags +faststart \"${c.dir}/reel.mp4\"`;\n})() }}"
+      },
+      "id": "9442afc4-0617-543c-b867-cc892245d36f",
+      "name": "Editar reel (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ (() => {\n  const c = $('Config del video').item.json;\n  const d = $('Datos del negocio').item.json;\n  const r = $('Leer respuesta de Claude').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Serif,FontSize=15,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const sub = subs ? `,subtitles=${c.dir}/subs.srt:fontsdir=${c.dir}:force_style='${estilo}'` : '';\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  // HISTORIA 9:16, hasta 15 s: banda de marca arriba (logo) y abajo (reservas), video en el medio\n  const fc = `[0:v]scale=1000:1380:force_original_aspect_ratio=increase,crop=1000:1380,setsar=1${sub}[v];` +\n    `[1:v]scale=230:-1,colorkey=0xFFFFFF:0.12:0.08[lg];[2:v][v]overlay=40:290:shortest=1[a];[a][lg]overlay=(W-w)/2:30[b];` +\n    `[b]drawtext=${font}:textfile=${c.dir}/hist1.txt:fontsize=64:fontcolor=${d.ff_texto}:x=(w-text_w)/2:y=1712,` +\n    `drawtext=${font}:textfile=${c.dir}/hist2.txt:fontsize=32:fontcolor=${d.ff_texto}:x=(w-text_w)/2:y=1812,format=yuv420p[out]`;\n  return txt('hist1', r.hist1_b64) + txt('hist2', r.hist2_b64) +\n    `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\" -i \"${c.dir}/logo.png\" -f lavfi -i color=c=${d.ff_marco}:s=1080x1920:r=30` +\n    ` -t ${c.historia_max_seg} -filter_complex \"${fc}\" -map \"[out]\" -map 0:a? -af loudnorm=I=-14:TP=-1.5:LRA=11 -c:a aac -b:a 128k -ar 48000 -c:v libx264 -preset veryfast -crf 23 -movflags +faststart \"${c.dir}/historia.mp4\"`;\n})() }}"
+      },
+      "id": "ffba6dc4-4a1b-51c4-bd9b-7433e55fb0ba",
+      "name": "Editar historia (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ (() => {\n  const c = $('Config del video').item.json;\n  const d = $('Datos del negocio').item.json;\n  const r = $('Leer respuesta de Claude').item.json;\n  const subs = $('Armar subtítulos').item.json.tiene_subs;\n  const estilo = \"FontName=DejaVu Serif,FontSize=15,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=70\";\n  const sub = subs ? `,subtitles=${c.dir}/subs.srt:fontsdir=${c.dir}:force_style='${estilo}'` : '';\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  // PORTADA FEED 4:5 (1080x1350): el mejor cuadro del video con marco de marca, título y logo\n  const fc = `[0:v]thumbnail=90,scale=1000:1000:force_original_aspect_ratio=increase,crop=1000:1000,setsar=1,setpts=0[f];` +\n    `[1:v]scale=220:-1,colorkey=0xFFFFFF:0.12:0.08[lg];[2:v][f]overlay=40:40:eof_action=repeat[a];[a][lg]overlay=W-w-40:1062[b];` +\n    `[b]drawtext=${font}:textfile=${c.dir}/portada.txt:fontsize=56:line_spacing=8:fontcolor=${d.ff_texto}:x=40:y=1072,` +\n    `drawtext=${font}:textfile=${c.dir}/portada_pie.txt:fontsize=24:fontcolor=${d.ff_texto}:x=40:y=1304[out]`;\n  return txt('portada', r.portada_b64) + txt('portada_pie', r.portada_pie_b64) +\n    `ffmpeg -hide_banner -loglevel error -y -i \"${c.crudo}\" -i \"${c.dir}/logo.png\" -f lavfi -i color=c=${d.ff_marco}:s=1080x1350:d=1` +\n    ` -filter_complex \"${fc}\" -map \"[out]\" -frames:v 1 -q:v 2 \"${c.dir}/portada.jpg\"`;\n})() }}"
+      },
+      "id": "4e1be7b1-17c4-5424-a2e7-cd9049d727e6",
+      "name": "Hacer portada feed (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        5500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Config del video').item.json.dir }}/reel.mp4",
+        "options": {}
+      },
+      "id": "301096c1-9191-5ab9-9a00-41bbaece8331",
+      "name": "Leer reel listo",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        5720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Leer respuesta de Claude').item.json.nombre_archivo }}.mp4",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.carpeta_reels_id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "7ad1c62b-b0ec-5d9b-8414-ff5f7b6fc940",
+      "name": "Subir reel a Listos/Reels",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5940,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Config del video').item.json.dir }}/historia.mp4",
+        "options": {}
+      },
+      "id": "5b7efb15-55bd-5448-b12a-a3b093754fc2",
+      "name": "Leer historia",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        6160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Leer respuesta de Claude').item.json.nombre_archivo }} - historia.mp4",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.carpeta_historias_id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "114dfa46-b0ad-5755-9ff6-78c15b6ed249",
+      "name": "Subir historia a Listos/Historias",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        6380,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Config del video').item.json.dir }}/portada.jpg",
+        "options": {}
+      },
+      "id": "e542d7f1-1490-5bc0-8e29-a4d57392f354",
+      "name": "Leer portada",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        6600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Leer respuesta de Claude').item.json.nombre_archivo }} - portada feed.jpg",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.carpeta_feed_id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "75c5f656-f36f-5577-8163-21d82b76c616",
+      "name": "Subir portada a Listos/Feed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        6820,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// === Code node \"Armar texto para publicar\" ===\nconst c = $('Leer respuesta de Claude').item.json;\nconst cfg = $('Config del video').item.json;\nconst txt = [\n  `TÍTULO: ${c.titulo}`,\n  `TEXTO PARA LA PORTADA: ${c.gancho}`,\n  '',\n  'CAPTION (copiar y pegar):',\n  c.caption,\n  '',\n  c.hashtags,\n  '',\n  'Archivos: reel (Listos/Reels), historia de 15 s (Listos/Historias), portada 4:5 (Listos/Feed).',\n  `Video original: ${cfg.file_name}`,\n].join('\\n');\nreturn { json: {}, binary: { data: {\n  data: Buffer.from(txt, 'utf8').toString('base64'),\n  mimeType: 'text/plain',\n  fileName: `${c.nombre_archivo}.txt`,\n}}};"
+      },
+      "id": "4029a25f-05a7-5749-888d-7e53ac7c90a9",
+      "name": "Armar texto para publicar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7040,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Leer respuesta de Claude').item.json.nombre_archivo }}.txt",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config del video').item.json.carpeta_reels_id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "fbe9cd7c-c0cb-5608-acdf-0fb365aac865",
+      "name": "Subir texto a Listos/Reels",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        7260,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Config del video').item.json.email_aviso }}",
+        "subject": "=🎬 Listos: reel, historia y portada — {{ $('Leer respuesta de Claude').item.json.titulo }}",
+        "emailType": "text",
+        "message": "=¡Hola! Ya está listo tu contenido en tu carpeta Listos.\n\nReel: https://drive.google.com/file/d/{{ $('Subir reel a Listos/Reels').item.json.id }}/view\nHistoria (15 s): https://drive.google.com/file/d/{{ $('Subir historia a Listos/Historias').item.json.id }}/view\nPortada para el feed: https://drive.google.com/file/d/{{ $('Subir portada a Listos/Feed').item.json.id }}/view\n\nCaption para pegar:\n{{ $('Leer respuesta de Claude').item.json.caption }}\n\n{{ $('Leer respuesta de Claude').item.json.hashtags }}\n\nRevisalo antes de subirlo. Si algo no te gusta, avisanos.\n— {{ $('Config del video').item.json.nombre_servicio }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "39453fa2-594a-533f-92e6-92cf4eac2b21",
+      "name": "Avisar por mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7700,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail DCC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=rm -rf \"{{ $('Config del video').item.json.dir }}\""
+      },
+      "id": "6840a5d5-435a-580e-8e65-a382e7fde15d",
+      "name": "Limpiar archivos temporales",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        7920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/terminar_video",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  p_reel_id: $('Config del video').first().json.reel_id,\n  p_titulo: $('Leer respuesta de Claude').first().json.titulo,\n  p_caption: $('Leer respuesta de Claude').first().json.caption,\n  p_hashtags: $('Leer respuesta de Claude').first().json.hashtags,\n  p_transcripcion: $('Armar subtítulos').first().json.transcripcion,\n  p_reel_file_id: $('Subir reel a Listos/Reels').first().json.id,\n  p_historia_file_id: $('Subir historia a Listos/Historias').first().json.id,\n  p_portada_file_id: $('Subir portada a Listos/Feed').first().json.id\n}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Marcar video listo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7480,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "e2074b6b-b18b-544b-b110-599ddfb530db"
+    }
+  ],
+  "connections": {
+    "Cada 2 minutos": {
+      "main": [
+        [
+          {
+            "node": "Clientes a revisar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clientes a revisar": {
+      "main": [
+        [
+          {
+            "node": "Armar búsqueda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar búsqueda": {
+      "main": [
+        [
+          {
+            "node": "Buscar videos en Crudo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar videos en Crudo": {
+      "main": [
+        [
+          {
+            "node": "Videos encontrados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Videos encontrados": {
+      "main": [
+        [
+          {
+            "node": "Registrar videos nuevos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar videos nuevos": {
+      "main": [
+        [
+          {
+            "node": "Tomar siguiente video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tomar siguiente video": {
+      "main": [
+        [
+          {
+            "node": "Config del video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config del video": {
+      "main": [
+        [
+          {
+            "node": "Preparar carpeta de trabajo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar carpeta de trabajo": {
+      "main": [
+        [
+          {
+            "node": "Datos del negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Bajar logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar logo": {
+      "main": [
+        [
+          {
+            "node": "Guardar logo en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar logo en disco": {
+      "main": [
+        [
+          {
+            "node": "Bajar fuente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar fuente": {
+      "main": [
+        [
+          {
+            "node": "Guardar fuente en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar fuente en disco": {
+      "main": [
+        [
+          {
+            "node": "Bajar video crudo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar video crudo": {
+      "main": [
+        [
+          {
+            "node": "Guardar crudo en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar crudo en disco": {
+      "main": [
+        [
+          {
+            "node": "Sacar audio (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sacar audio (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Leer audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribir (Groq Whisper)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribir (Groq Whisper)": {
+      "main": [
+        [
+          {
+            "node": "Armar subtítulos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar subtítulos": {
+      "main": [
+        [
+          {
+            "node": "Guardar subtítulos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar subtítulos": {
+      "main": [
+        [
+          {
+            "node": "Claude: título y caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: título y caption": {
+      "main": [
+        [
+          {
+            "node": "Leer respuesta de Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer respuesta de Claude": {
+      "main": [
+        [
+          {
+            "node": "Editar reel (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar reel (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Editar historia (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar historia (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Hacer portada feed (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hacer portada feed (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Leer reel listo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer reel listo": {
+      "main": [
+        [
+          {
+            "node": "Subir reel a Listos/Reels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir reel a Listos/Reels": {
+      "main": [
+        [
+          {
+            "node": "Leer historia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer historia": {
+      "main": [
+        [
+          {
+            "node": "Subir historia a Listos/Historias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir historia a Listos/Historias": {
+      "main": [
+        [
+          {
+            "node": "Leer portada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer portada": {
+      "main": [
+        [
+          {
+            "node": "Subir portada a Listos/Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir portada a Listos/Feed": {
+      "main": [
+        [
+          {
+            "node": "Armar texto para publicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar texto para publicar": {
+      "main": [
+        [
+          {
+            "node": "Subir texto a Listos/Reels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir texto a Listos/Reels": {
+      "main": [
+        [
+          {
+            "node": "Marcar video listo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar video listo": {
+      "main": [
+        [
+          {
+            "node": "Avisar por mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar por mail": {
+      "main": [
+        [
+          {
+            "node": "Limpiar archivos temporales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "pinData": {}
+}

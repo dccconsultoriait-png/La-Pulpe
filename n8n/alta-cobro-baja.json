@@ -1,0 +1,1342 @@
+{
+  "name": "Multiredes: alta, cobro y baja v1.0",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "multiredes-alta",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "name": "Formulario de alta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "d69a97f5-ae1b-51f3-b983-06fc00d9f8a6",
+      "id": "670b5740-38c3-5083-a0af-e5406e6f715b",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lee lo que manda el formulario: un campo \"d\" con el JSON\nconst leer = x => { if (typeof x !== 'string') return x; try { return JSON.parse(x); } catch (e) { return null; } };\nconst body = leer($input.first().json.body ?? {}) || {};\nlet b = leer(body.d) || leer(($input.first().json.query || {}).d) || body;\nif (!b || typeof b !== 'object') b = {};\nconst accion = b.accion === 'alta' ? 'alta' : 'planes';\nif (accion === 'planes') return [{ json: { accion, rpc: 'planes_publicos', cuerpo: {} } }];\nconst d = (b.datos && typeof b.datos === 'object') ? b.datos : {};\nconst txt = (v, n) => String(v ?? '').slice(0, n);\nreturn [{ json: {\n  accion, rpc: 'registrar_alta',\n  email_mp: txt(b.email_mp, 120).trim().toLowerCase(),\n  cuerpo: {\n    p_email: txt(b.email, 120), p_plan: txt(b.plan, 40),\n    p_datos: { nombre: txt(d.nombre, 80), rubro: txt(d.rubro, 200), descripcion: txt(d.descripcion, 400),\n               tono: txt(d.tono, 200), telefono: txt(d.telefono, 40), instagram: txt(d.instagram, 60),\n               direccion: txt(d.direccion, 120), horario: txt(d.horario, 120) },\n    p_logo_b64: txt(b.logo, 4000001), p_logo_mime: txt(b.logo_mime || 'image/png', 40),\n  },\n} }];\n"
+      },
+      "name": "Leer formulario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "063c0eec-532f-5b15-ac4e-6f582fe09897",
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/{{ $json.rpc }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Supabase: planes o alta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "280b4e38-17c0-5b94-b7a7-dada02edb408",
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const desenvolver = j => {\n  if (j && typeof j === 'object' && !Array.isArray(j)) {\n    const k = Object.keys(j);\n    if (k.length === 1 && j[k[0]] && typeof j[k[0]] === 'object') return j[k[0]];\n  }\n  return j || {};\n};\n// Decide: contestar ya (planes o error) o crear el cobro en Mercado Pago\nconst f = $('Leer formulario').first().json;\nconst r = desenvolver($input.first().json);\nif (f.accion === 'planes') {\n  // Supabase devuelve una lista: n8n la parte en un ítem por plan\n  let planes = $input.all().map(i => i.json);\n  if (planes.length === 1 && !planes[0].id) {\n    const v = planes[0].planes_publicos || planes[0].data;\n    planes = Array.isArray(v) ? v : [];\n  }\n  return [{ json: { cobrar: false, resp: { ok: true, planes } } }];\n}\nif (!r.ok) return [{ json: { cobrar: false, resp: { ok: false, error: r.error || 'No se pudo hacer el alta' } } }];\nif (!r.url_pagina) return [{ json: { cobrar: false, resp: { ok: false, error: 'Falta url_pagina en la configuración' } } }];\n\nconst p = r.plan;\nconst volver = r.url_pagina + '/gracias.html';\nlet mp_url, mp_body;\nif (p.mensual) {\n  // Suscripción: Mercado Pago le cobra solo cada mes\n  mp_url = 'https://api.mercadopago.com/preapproval';\n  mp_body = {\n    reason: `${r.servicio} - Plan ${p.nombre}`,\n    external_reference: r.business_id,\n    payer_email: f.email_mp || r.email,\n    auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: Number(p.precio), currency_id: 'ARS' },\n    back_url: volver,\n    status: 'pending',\n  };\n} else {\n  // Prueba: pago único\n  mp_url = 'https://api.mercadopago.com/checkout/preferences';\n  mp_body = {\n    items: [{ id: p.id, title: `${r.servicio} - ${p.nombre}`, quantity: 1, unit_price: Number(p.precio), currency_id: 'ARS' }],\n    external_reference: r.business_id,\n    back_urls: { success: volver, failure: volver, pending: volver },\n    auto_return: 'approved',\n    notification_url: 'https://n8n-fg3m.srv2056463.hstgr.cloud/webhook/multiredes-mp',\n    statement_descriptor: String(r.servicio).toUpperCase().slice(0, 13),\n  };\n}\nreturn [{ json: { cobrar: true, mensual: p.mensual, business_id: r.business_id, mp_url, mp_body } }];\n"
+      },
+      "name": "¿Qué sigue con el alta?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "8bd82e81-c0ce-5821-8782-b34864f7dbf2",
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3bfe5870-7a62-57a3-9348-7628b800c7af",
+              "leftValue": "={{ $json.cobrar === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "¿Hay que crear el cobro?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "240dcc1e-2199-5269-a861-7d29216e7c91",
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.mp_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.mp_body) }}"
+      },
+      "name": "Mercado Pago: crear el cobro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Mercado Pago (prueba)"
+        }
+      },
+      "id": "2e33fc9d-4150-5634-b85d-8b2b3e130101",
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lo que contestó Mercado Pago: la dirección para pagar\nconst a = $('¿Qué sigue con el alta?').first().json;\nconst m = $input.first().json || {};\nconst url = m.init_point || m.sandbox_init_point;\nif (!url) {\n  const motivo = m.message || m.error || 'sin detalle';\n  return [{ json: { guardar: false, resp: { ok: false, error: 'Mercado Pago no aceptó el cobro (' + motivo + '). Probá de nuevo en un rato.' } } }];\n}\nreturn [{ json: { guardar: a.mensual === true, cuerpo: { p_business_id: a.business_id, p_preapproval_id: String(m.id || '') },\n                  resp: { ok: true, url } } }];\n"
+      },
+      "name": "Leer respuesta de Mercado Pago",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "423f3070-99c5-5d55-b2d2-3af60427e7d4",
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "079a3152-6bb9-5d04-b232-26f093252126",
+              "leftValue": "={{ $json.guardar === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "¿Es suscripción?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "822161ef-597b-53b6-8b54-708f8051a105",
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/guardar_suscripcion",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Supabase: guardar suscripción",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "558ac719-f0f4-50ba-b9cf-c8b3d7d9a7a1",
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { resp: $('Leer respuesta de Mercado Pago').first().json.resp } }];\n"
+      },
+      "name": "Respuesta final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "a18452e0-aa40-52fd-b3c7-995c6afe1eb0",
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.resp) }}",
+        "options": {}
+      },
+      "name": "Responder al formulario",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "id": "386af43d-527d-507d-b862-bbbc0b8facfe",
+      "position": [
+        2200,
+        132
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "multiredes-mp",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Aviso de Mercado Pago",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "55d2b9db-bd49-57dd-8016-9b5721a9f5db",
+      "id": "3cfdd65d-56bf-53d5-bf70-d2331dd90a14",
+      "position": [
+        0,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mercado Pago avisa \"qué cambió\" (tipo + id). Acá solo se arma a dónde preguntar.\nconst body = (typeof $input.first().json.body === 'object' && $input.first().json.body) || {};\nconst q = $input.first().json.query || {};\nconst tipo = String(body.type || body.topic || q.type || q.topic || '');\nconst id = String((body.data && body.data.id) || q['data.id'] || q.id || body.id || '');\nif (!/^[A-Za-z0-9-]{1,64}$/.test(id)) return [];\nconst rutas = {\n  payment: '/v1/payments/',\n  subscription_authorized_payment: '/authorized_payments/',\n  subscription_preapproval: '/preapproval/',\n  preapproval: '/preapproval/',\n};\nif (!rutas[tipo]) return [];   // otros avisos (merchant_order, planes, etc.) no hacen falta\nreturn [{ json: { tipo, id, url: 'https://api.mercadopago.com' + rutas[tipo] + id } }];\n"
+      },
+      "name": "¿Qué avisó Mercado Pago?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "8987fcfe-3e22-5056-840b-84795c4d7e4d",
+      "position": [
+        220,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "name": "Mercado Pago: leer el aviso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Mercado Pago (prueba)"
+        }
+      },
+      "id": "cab17536-9123-5a22-a9c1-329838dc6e83",
+      "position": [
+        440,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pasa lo que dice Mercado Pago a una llamada a Supabase\nconst a = $('¿Qué avisó Mercado Pago?').first().json;\nconst m = $input.first().json || {};\nif (!m.id) return [];   // Mercado Pago no lo encontró (por ejemplo, un aviso de prueba del panel)\nif (a.tipo === 'payment') {\n  const pre = (m.metadata && (m.metadata.preapproval_id || m.metadata.subscription_id)) || '';\n  return [{ json: { rpc: 'registrar_pago', cuerpo: {\n    p_mp_payment_id: String(m.id), p_business_id: String(m.external_reference || ''), p_preapproval_id: String(pre),\n    p_monto: Number(m.transaction_amount || 0), p_estado: String(m.status || ''),\n    p_detalle: { origen: 'payment', detalle: m.status_detail || null, medio: m.payment_type_id || null } } } }];\n}\nif (a.tipo === 'subscription_authorized_payment') {\n  if (!m.payment || !m.payment.id) return [];   // cuota programada que todavía no se cobró\n  return [{ json: { rpc: 'registrar_pago', cuerpo: {\n    p_mp_payment_id: String(m.payment.id), p_business_id: String(m.external_reference || ''),\n    p_preapproval_id: String(m.preapproval_id || ''), p_monto: Number(m.transaction_amount || 0),\n    p_estado: String(m.payment.status || ''),\n    p_detalle: { origen: 'authorized_payment', cuota: String(m.id), estado_cuota: m.status || null } } } }];\n}\nreturn [{ json: { rpc: 'actualizar_suscripcion', cuerpo: {\n  p_preapproval_id: String(m.id), p_business_id: String(m.external_reference || ''), p_estado: String(m.status || '') } } }];\n"
+      },
+      "name": "Entender el aviso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "d45261a3-8096-5e80-a736-3ec774a30d8d",
+      "position": [
+        660,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/{{ $json.rpc }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Supabase: anotar el aviso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "53b4ef55-62d3-5c48-9f1f-0dfc2c84ffc8",
+      "position": [
+        880,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const desenvolver = j => {\n  if (j && typeof j === 'object' && !Array.isArray(j)) {\n    const k = Object.keys(j);\n    if (k.length === 1 && j[k[0]] && typeof j[k[0]] === 'object') return j[k[0]];\n  }\n  return j || {};\n};\n// Según lo que anotó Supabase: bienvenida, aviso de pago, aviso de cancelación o nada\nconst r = desenvolver($input.first().json);\nif (!r.ok) {\n  if (r.error) console.log('Aviso de Mercado Pago sin cliente:', r.error);\n  return [];\n}\nconst serv = r.servicio || 'Multiredes';\nconst firma = `\\n\\nCualquier duda, respondé este mail.\\n${serv}`;\nif (r.aprobado_nuevo && r.primera_vez) {\n  const link = `${r.url_pagina}/?t=${r.token_subida}`;\n  const cupo = r.total ? `${r.total} piezas hasta el ${r.hasta}` : `${r.por_semana} piezas por semana (de lunes a domingo)`;\n  const baja = r.total\n    ? 'La Prueba termina sola: no se te va a cobrar nada más.'\n    : 'Se cobra solo cada mes por Mercado Pago. Si querés darte de baja, la cancelás cuando quieras desde Mercado Pago > Suscripciones.';\n  return [{ json: {\n    que: 'bienvenida', business_id: r.business_id, email: r.email, bcc: r.email_admin || '',\n    carpeta: `${serv} - ${r.nombre}`, padre: r.carpeta_clientes_id || 'root',\n    logo_b64: r.logo_b64 || '', logo_mime: r.logo_mime || 'image/png',\n    asunto: `¡Bienvenidos a ${serv}! Tu link para subir videos y fotos`,\n    texto: `¡Hola, ${r.nombre}!\\n\\nYa está todo listo. Tu plan: ${r.plan}, ${cupo}.\\n\\n` +\n           `Este es tu link personal para subir videos y fotos:\\n${link}\\n\\n` +\n           'Guardá este mail y no compartas el link: es solo tuyo.\\n\\n' +\n           'Cómo funciona:\\n' +\n           '1. Abrís el link y subís tus videos o fotos, tal como salen del celular.\\n' +\n           '2. Si querés, nos dejás una nota (una promo, un evento, un sorteo).\\n' +\n           '3. Te los devolvemos listos para Instagram, TikTok y Facebook: te llega un mail y los ves en la pestaña \"Listos\".\\n\\n' +\n           'Un video o una foto es 1 pieza; un carrusel (de 2 a 10 fotos) son 2.\\n\\n' + baja + firma,\n  } }];\n}\nif (r.aprobado_nuevo) {\n  const texto = r.reactivado\n    ? `¡Hola, ${r.nombre}! Recibimos tu pago y tu cuenta volvió a estar activa hasta el ${r.hasta}. Ya podés seguir subiendo con tu link de siempre.`\n    : `¡Hola, ${r.nombre}! Recibimos tu pago. Tu plan ${r.plan} sigue activo hasta el ${r.hasta}.`;\n  return [{ json: { que: 'aviso', email: r.email, bcc: r.email_admin || '',\n                    asunto: r.reactivado ? `Tu cuenta de ${serv} está activa otra vez` : `Recibimos tu pago - ${serv}`,\n                    texto: texto + firma } }];\n}\n// (si ya estaba de baja o nunca pagó, no hace falta avisar)\nif (r.cambio && r.estado === 'cancelled' && ['activo', 'en_gracia', 'pausado'].includes(r.estado_cliente)) {\n  return [{ json: { que: 'aviso', email: r.email, bcc: r.email_admin || '',\n                    asunto: `Se canceló tu suscripción a ${serv}`,\n                    texto: `¡Hola, ${r.nombre}! Se canceló tu suscripción en Mercado Pago: no se te va a cobrar más.\\n\\n` +\n                           (r.hasta ? `Podés seguir subiendo contenido hasta el ${r.hasta}. ` : '') +\n                           'Si te arrepentís, te podés volver a sumar cuando quieras.' + firma } }];\n}\nreturn [];\n"
+      },
+      "name": "¿Qué hay que hacer?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "93013520-0229-5c62-9890-6495a761cd1f",
+      "position": [
+        1100,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "93c46fd9-039e-5c7f-88bc-7d368bd7d1a3",
+              "leftValue": "={{ $json.que === 'bienvenida' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "¿Es cliente nuevo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "bc03b5bf-ba36-547b-b8cd-ce52931e45ad",
+      "position": [
+        1320,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ $json.carpeta }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.padre }}"
+        },
+        "options": {}
+      },
+      "name": "Crear carpeta del cliente",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "0fe95297-0616-5ebd-ad51-b4cb8e1aaaec",
+      "position": [
+        1540,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Crudo",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear carpeta del cliente').first().json.id }}"
+        },
+        "options": {}
+      },
+      "name": "Crear Crudo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "ec738d67-3789-5d60-bfb2-bfe59e7aa67f",
+      "position": [
+        1760,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Listos",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear carpeta del cliente').first().json.id }}"
+        },
+        "options": {}
+      },
+      "name": "Crear Listos",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "9e1d1a48-d9ae-5f7d-922d-f93187e11e5d",
+      "position": [
+        1980,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Reels",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear Listos').first().json.id }}"
+        },
+        "options": {}
+      },
+      "name": "Crear Reels",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "11a646cf-73a1-517d-a342-617f07d5099f",
+      "position": [
+        2200,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Historias",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear Listos').first().json.id }}"
+        },
+        "options": {}
+      },
+      "name": "Crear Historias",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "a678f6e6-0815-5e66-9482-5eb03526feff",
+      "position": [
+        2420,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Feed",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear Listos').first().json.id }}"
+        },
+        "options": {}
+      },
+      "name": "Crear Feed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "319de6dc-1163-5d13-8d3e-9893e3923d17",
+      "position": [
+        2640,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Recursos",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear carpeta del cliente').first().json.id }}"
+        },
+        "options": {}
+      },
+      "name": "Crear Recursos",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "id": "44a90b29-f49a-5599-8aec-9d813e28134f",
+      "position": [
+        2860,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $('Crear Listos').first().json.id }}/permissions?supportsAllDrives=true",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"role\": \"reader\", \"type\": \"anyone\"}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Abrir Listos con el link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "67b7a8ad-f0a7-5845-9b88-9ea5c439684c",
+      "position": [
+        3080,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// El logo que llegó en el formulario pasa a ser un archivo\nconst n = $('¿Qué hay que hacer?').first().json;\nif (!n.logo_b64) return [];   // no hay logo guardado: se sigue sin él\nconst ext = n.logo_mime === 'image/jpeg' ? 'jpg' : 'png';\nconst data = await this.helpers.prepareBinaryData(Buffer.from(n.logo_b64, 'base64'), 'logo.' + ext, n.logo_mime);\nreturn [{ json: {}, binary: { data } }];\n"
+      },
+      "name": "Preparar logo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "id": "bfe02a89-2cd8-5243-a294-9a703ab50b90",
+      "position": [
+        3300,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $binary.data ? $binary.data.fileName : \"logo.png\" }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Crear Recursos').first().json.id }}"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "name": "Subir logo a Recursos",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "48ecf93d-5994-52d7-a968-57b0cbcba261",
+      "position": [
+        3520,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta los ids de las carpetas para guardarlos en Supabase\nconst id = nombre => { try { return $(nombre).first().json.id || ''; } catch (e) { return ''; } };\nlet logo = '';\ntry { logo = $('Subir logo a Recursos').first().json.id || ''; } catch (e) { logo = ''; }\nreturn [{ json: { cuerpo: {\n  p_business_id: $('¿Qué hay que hacer?').first().json.business_id,\n  p_raiz: id('Crear carpeta del cliente'), p_crudo: id('Crear Crudo'), p_reels: id('Crear Reels'),\n  p_historias: id('Crear Historias'), p_feed: id('Crear Feed'), p_recursos: id('Crear Recursos'), p_logo: logo,\n} } }];\n"
+      },
+      "name": "Juntar carpetas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "d7745297-3524-5306-8993-82f7297b4134",
+      "position": [
+        3740,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/guardar_carpetas",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Supabase: guardar carpetas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "def07509-e7ac-584b-9249-64001cda6450",
+      "position": [
+        3960,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('¿Qué hay que hacer?').first().json.email }}",
+        "subject": "={{ $('¿Qué hay que hacer?').first().json.asunto }}",
+        "emailType": "text",
+        "message": "={{ $('¿Qué hay que hacer?').first().json.texto }}",
+        "options": {
+          "appendAttribution": false,
+          "bccList": "={{ $('¿Qué hay que hacer?').first().json.bcc }}"
+        }
+      },
+      "name": "Mail de bienvenida",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail DCC"
+        }
+      },
+      "id": "ced4c86f-033a-5765-b76c-3194f6b9a651",
+      "position": [
+        4180,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.asunto }}",
+        "emailType": "text",
+        "message": "={{ $json.texto }}",
+        "options": {
+          "appendAttribution": false,
+          "bccList": "={{ $json.bcc }}"
+        }
+      },
+      "name": "Mail de pago o cancelación",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail DCC"
+        }
+      },
+      "id": "64798182-49be-5594-8021-6886155a43f4",
+      "position": [
+        1540,
+        550
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "name": "Todos los días a las 9",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "5884da26-85f7-5022-b09b-02e19aef47e2",
+      "position": [
+        0,
+        770
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://smmmbtmhcceivjipnfxe.supabase.co/rest/v1/rpc/revision_diaria",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Supabase: revisión diaria",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase (clientes)"
+        }
+      },
+      "id": "6ec67ef1-b824-5756-91de-b8bd651d37e9",
+      "position": [
+        220,
+        770
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const desenvolver = j => {\n  if (j && typeof j === 'object' && !Array.isArray(j)) {\n    const k = Object.keys(j);\n    if (k.length === 1 && j[k[0]] && typeof j[k[0]] === 'object') return j[k[0]];\n  }\n  return j || {};\n};\n// Un mail por cada cliente que cambió de estado hoy\nconst out = [];\nfor (const it of $input.all()) {\n  const lista = Array.isArray(it.json) ? it.json : (Array.isArray(it.json.revision_diaria) ? it.json.revision_diaria : [it.json]);\n  for (const x of lista) {\n    const r = desenvolver(x);\n    if (!r || !r.accion || !r.email) continue;\n    const serv = r.servicio || 'Multiredes';\n    const firma = `\\n\\nCualquier duda, respondé este mail.\\n${serv}`;\n    const t = {\n      gracia: [`No pudimos cobrar tu plan de ${serv}`,\n        `¡Hola, ${r.nombre}! Mercado Pago no pudo cobrar este mes. Revisá tu medio de pago en Mercado Pago > Suscripciones.\\n\\n` +\n        `Te damos ${r.dias} días para resolverlo: mientras tanto podés seguir subiendo como siempre.`],\n      fin_prueba: [`Terminó tu Prueba de ${serv}`,\n        `¡Hola, ${r.nombre}! Terminó tu semana de Prueba. Esperamos que te haya gustado.\\n\\n` +\n        'Si querés seguir, elegí un plan mensual en el mismo formulario del alta, con el mismo email: tus carpetas y tu link siguen siendo los mismos.'],\n      fin_suscripcion: [`Terminó tu plan de ${serv}`,\n        `¡Hola, ${r.nombre}! Terminó el período que tenías pago. Tu cuenta queda en pausa: no se borra nada.\\n\\n` +\n        'Si querés volver, sumate de nuevo con el mismo email.'],\n      pausa: [`Tu cuenta de ${serv} quedó en pausa`,\n        `¡Hola, ${r.nombre}! No pudimos cobrar tu plan, así que tu cuenta quedó en pausa: por ahora no se editan videos ni fotos nuevos. No se borra nada.\\n\\n` +\n        `Cuando Mercado Pago logre cobrar, se activa sola otra vez. Si en ${r.dias} días sigue sin pago, se da de baja.`],\n      baja: [`Te dimos de baja de ${serv}`,\n        `¡Hola, ${r.nombre}! Como tu cuenta estuvo un mes en pausa sin pago, la dimos de baja y cancelamos la suscripción: no se te va a cobrar nada más.\\n\\n` +\n        'Tus archivos siguen en tus carpetas. Si querés volver, sumate de nuevo con el mismo email.'],\n    }[r.accion];\n    if (!t) continue;\n    out.push({ json: { accion: r.accion, email: r.email, bcc: r.email_admin || '', asunto: t[0], texto: t[1] + firma,\n                       cancelar: r.accion === 'baja' && r.preapproval ? String(r.preapproval) : '' } });\n  }\n}\nreturn out;\n"
+      },
+      "name": "Avisos del día",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "77583347-ae7d-5e0e-9e11-4542e9809164",
+      "position": [
+        440,
+        770
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "827bb6a2-4453-57eb-b394-d2aa54195f76",
+              "leftValue": "={{ $json.cancelar !== '' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "¿Hay que cancelar la suscripción?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "d0ed7d76-036d-5907-bca5-e50c9fc8246d",
+      "position": [
+        660,
+        770
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.mercadopago.com/preapproval/{{ $json.cancelar }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"status\": \"cancelled\"}"
+      },
+      "name": "Mercado Pago: cancelar suscripción",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Mercado Pago (prueba)"
+        }
+      },
+      "id": "8bf65022-6c6e-5dd2-8a7a-2a01e096b18c",
+      "position": [
+        880,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Avisos del día').item.json.email }}",
+        "subject": "={{ $('Avisos del día').item.json.asunto }}",
+        "emailType": "text",
+        "message": "={{ $('Avisos del día').item.json.texto }}",
+        "options": {
+          "appendAttribution": false,
+          "bccList": "={{ $('Avisos del día').item.json.bcc }}"
+        }
+      },
+      "name": "Mail del día",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail DCC"
+        }
+      },
+      "id": "cddfc458-9d4f-5880-980b-e2a9e231ba18",
+      "position": [
+        1100,
+        770
+      ]
+    }
+  ],
+  "connections": {
+    "Formulario de alta": {
+      "main": [
+        [
+          {
+            "node": "Leer formulario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer formulario": {
+      "main": [
+        [
+          {
+            "node": "Supabase: planes o alta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: planes o alta": {
+      "main": [
+        [
+          {
+            "node": "¿Qué sigue con el alta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Qué sigue con el alta?": {
+      "main": [
+        [
+          {
+            "node": "¿Hay que crear el cobro?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay que crear el cobro?": {
+      "main": [
+        [
+          {
+            "node": "Mercado Pago: crear el cobro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder al formulario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mercado Pago: crear el cobro": {
+      "main": [
+        [
+          {
+            "node": "Leer respuesta de Mercado Pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer respuesta de Mercado Pago": {
+      "main": [
+        [
+          {
+            "node": "¿Es suscripción?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es suscripción?": {
+      "main": [
+        [
+          {
+            "node": "Supabase: guardar suscripción",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder al formulario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: guardar suscripción": {
+      "main": [
+        [
+          {
+            "node": "Respuesta final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta final": {
+      "main": [
+        [
+          {
+            "node": "Responder al formulario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aviso de Mercado Pago": {
+      "main": [
+        [
+          {
+            "node": "¿Qué avisó Mercado Pago?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Qué avisó Mercado Pago?": {
+      "main": [
+        [
+          {
+            "node": "Mercado Pago: leer el aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mercado Pago: leer el aviso": {
+      "main": [
+        [
+          {
+            "node": "Entender el aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entender el aviso": {
+      "main": [
+        [
+          {
+            "node": "Supabase: anotar el aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: anotar el aviso": {
+      "main": [
+        [
+          {
+            "node": "¿Qué hay que hacer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Qué hay que hacer?": {
+      "main": [
+        [
+          {
+            "node": "¿Es cliente nuevo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es cliente nuevo?": {
+      "main": [
+        [
+          {
+            "node": "Crear carpeta del cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mail de pago o cancelación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear carpeta del cliente": {
+      "main": [
+        [
+          {
+            "node": "Crear Crudo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Crudo": {
+      "main": [
+        [
+          {
+            "node": "Crear Listos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Listos": {
+      "main": [
+        [
+          {
+            "node": "Crear Reels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Reels": {
+      "main": [
+        [
+          {
+            "node": "Crear Historias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Historias": {
+      "main": [
+        [
+          {
+            "node": "Crear Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Feed": {
+      "main": [
+        [
+          {
+            "node": "Crear Recursos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Recursos": {
+      "main": [
+        [
+          {
+            "node": "Abrir Listos con el link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abrir Listos con el link": {
+      "main": [
+        [
+          {
+            "node": "Preparar logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar logo": {
+      "main": [
+        [
+          {
+            "node": "Subir logo a Recursos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir logo a Recursos": {
+      "main": [
+        [
+          {
+            "node": "Juntar carpetas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar carpetas": {
+      "main": [
+        [
+          {
+            "node": "Supabase: guardar carpetas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: guardar carpetas": {
+      "main": [
+        [
+          {
+            "node": "Mail de bienvenida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Todos los días a las 9": {
+      "main": [
+        [
+          {
+            "node": "Supabase: revisión diaria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: revisión diaria": {
+      "main": [
+        [
+          {
+            "node": "Avisos del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisos del día": {
+      "main": [
+        [
+          {
+            "node": "¿Hay que cancelar la suscripción?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay que cancelar la suscripción?": {
+      "main": [
+        [
+          {
+            "node": "Mercado Pago: cancelar suscripción",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mail del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mercado Pago: cancelar suscripción": {
+      "main": [
+        [
+          {
+            "node": "Mail del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {}
+}
