@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E4459">
+<title>Sumate a Multiredes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--pet:#0E4459;--coral:#FF5A4E;--agua:#E6F0F2;--ink:#0B1630;--mut:#5a707a;--line:#d5e2e6}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--agua);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif}
+h1,h2{font-family:Manrope,system-ui,sans-serif;font-weight:800;line-height:1.15;margin:0 0 .4em}
+h1{font-size:28px}h2{font-size:19px;margin-top:26px}
+.app{max-width:560px;margin:0 auto;background:#fff;min-height:100vh;padding:24px 20px 48px}
+.lead{color:var(--mut);margin:0 0 8px}
+label{display:block;font-weight:600;font-size:14px;margin:16px 0 6px}
+label small{font-weight:400;color:var(--mut)}
+input[type=text],input[type=email],input[type=tel],textarea,select{width:100%;font:16px Inter,sans-serif;padding:12px;border:1px solid #c3d6dc;border-radius:12px;background:#fff}
+textarea{min-height:70px;resize:vertical}
+.planes{display:grid;gap:10px}
+.plan{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;border:2px solid var(--line);border-radius:16px;padding:14px;cursor:pointer;font-weight:400;margin:0}
+.plan:has(input:checked){border-color:var(--pet);background:#f3f8f9}
+.plan b{font-family:Manrope,sans-serif;font-size:17px}
+.plan span{display:block;font-size:14px;color:var(--mut)}
+.plan .precio{font-weight:800;font-family:Manrope,sans-serif;color:var(--pet);text-align:right;white-space:nowrap}
+.plan .precio small{display:block;font:400 12px Inter,sans-serif;color:var(--mut)}
+.logo{display:flex;gap:14px;align-items:center}
+.logo img{width:84px;height:84px;object-fit:contain;border:1px solid var(--line);border-radius:12px;background:#f7f7f7}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:24px;border:0;font:600 16px Inter,sans-serif;cursor:pointer}
+.btn.c{background:var(--coral);color:#fff}.btn.g{background:var(--agua);color:var(--pet)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible,.plan:focus-within{outline:3px solid #7fc4d6;outline-offset:2px}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:14px;color:#3d5662}
+.check input{margin-top:4px;width:18px;height:18px;flex:none}
+.full{width:100%;margin-top:22px}
+.err{color:#b3261e;font-size:14px;margin-top:12px}
+.note{font-size:13px;color:var(--mut);margin-top:8px}
+</style>
+</head>
+<body>
+<form class="app" id="f" novalidate>
+  <h1>Sumate a Multiredes</h1>
+  <p class="lead">Subís tus videos y fotos sin editar. Te los devolvemos listos para Instagram, TikTok y Facebook: reels, historias, posts y carruseles con tu marca.</p>
+
+  <h2>1. Elegí tu plan</h2>
+  <div class="planes" id="planes"><p class="note">Cargando planes…</p></div>
+  <p class="note">Un video o una foto es 1 pieza; un carrusel son 2. La semana va de lunes a domingo.</p>
+
+  <h2>2. Tu negocio</h2>
+  <label for="nombre">Nombre del negocio</label>
+  <input type="text" id="nombre" maxlength="80" required autocomplete="organization">
+  <label for="rubro">¿A qué se dedica? <small>(ej: restaurante de comida casera, peluquería, ferretería)</small></label>
+  <input type="text" id="rubro" maxlength="200" required>
+  <label for="descripcion">Contalo en una frase <small>(opcional: qué los hace especiales)</small></label>
+  <textarea id="descripcion" maxlength="400"></textarea>
+  <label for="tono">¿Cómo le hablan a sus clientes?</label>
+  <select id="tono">
+    <option value="cercano y simple, español rioplatense">Cercano y simple</option>
+    <option value="cálido y familiar, español rioplatense">Cálido y familiar</option>
+    <option value="divertido y con humor, español rioplatense">Divertido</option>
+    <option value="profesional y claro, español rioplatense">Profesional</option>
+    <option value="elegante y cuidado, español rioplatense">Elegante</option>
+  </select>
+  <label>Logo <small>(una imagen; si tiene fondo blanco, mejor)</small></label>
+  <div class="logo">
+    <img id="logo-pv" alt="" hidden>
+    <label class="btn g" for="logo" style="margin:0">Elegir logo</label>
+    <input type="file" id="logo" accept="image/*">
+  </div>
+
+  <h2>3. Datos que van en tus publicaciones <small style="font:400 14px Inter;color:var(--mut)">(opcionales)</small></h2>
+  <label for="telefono">Teléfono o WhatsApp para reservas o consultas</label>
+  <input type="tel" id="telefono" maxlength="40" autocomplete="tel">
+  <label for="instagram">Instagram</label>
+  <input type="text" id="instagram" maxlength="60" placeholder="@tunegocio">
+  <label for="direccion">Dirección</label>
+  <input type="text" id="direccion" maxlength="120" autocomplete="street-address">
+  <label for="horario">Días y horarios</label>
+  <input type="text" id="horario" maxlength="120" placeholder="Ej: martes a domingo de 12 a 23">
+
+  <h2>4. Tu email</h2>
+  <label for="email">Ahí te llega tu link para subir contenido y los avisos</label>
+  <input type="email" id="email" maxlength="120" required autocomplete="email">
+  <label for="email_mp">Email de tu cuenta de Mercado Pago <small>(solo si es otro)</small></label>
+  <input type="email" id="email_mp" maxlength="120" autocomplete="off">
+  <p class="note">Mercado Pago pide que la suscripción se pague desde la cuenta con ese email.</p>
+
+  <label class="check"><input type="checkbox" id="acepto" required>
+    <span id="t-acepto">Acepto que el cobro lo hace Mercado Pago y que puedo darme de baja cuando quiera.</span></label>
+
+  <button class="btn c full" id="enviar" type="submit">Ir a pagar con Mercado Pago</button>
+  <p class="err" id="error" role="alert"></p>
+  <p class="note">Después del pago te llega un mail con tu link personal. Tus archivos quedan en tu Google Drive.</p>
+</form>
+<script>
+'use strict';
+const API = 'https://n8n-fg3m.srv2056463.hstgr.cloud/webhook/multiredes-alta';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pesos = n => '$' + Number(n).toLocaleString('es-AR');
+let logo = null, planes = [];
+
+async function api(accion, extra = {}) {
+  const r = await fetch(API, {method: 'POST', body: new URLSearchParams({d: JSON.stringify({accion, ...extra})})});
+  if (!r.ok) throw new Error('El servidor respondió ' + r.status);
+  const j = await r.json();
+  return Array.isArray(j) ? j[0] : j;
+}
+
+function detalle(p) {
+  if (p.total) return `${p.total} piezas en ${p.dias} días · pago único`;
+  return `${p.por_semana} piezas por semana · se cobra cada mes`;
+}
+
+(async () => {
+  try {
+    const r = await api('planes');
+    planes = r.planes || [];
+    const pedido = new URLSearchParams(location.search).get('plan');
+    $('planes').innerHTML = planes.map((p, i) => `
+      <label class="plan"><input type="radio" name="plan" value="${esc(p.id)}" ${p.id === pedido || (!pedido && i === 1) ? 'checked' : ''}>
+        <div><b>${esc(p.nombre)}</b><span>${esc(detalle(p))}</span></div>
+        <div class="precio">${pesos(p.precio)}<small>${p.total ? 'una vez' : 'por mes'}</small></div></label>`).join('');
+  } catch (e) {
+    $('planes').innerHTML = '<p class="err">No pude cargar los planes. Probá de nuevo en un rato.</p>';
+  }
+})();
+
+// Logo: se achica a 800 px en PNG antes de mandarlo
+$('logo').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const img = await createImageBitmap(f);
+    const k = Math.min(1, 800 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/png');
+    logo = url.split(',')[1];
+    $('logo-pv').src = url; $('logo-pv').hidden = false;
+    $('error').textContent = '';
+  } catch (_) {
+    logo = null; $('error').textContent = 'No pude leer esa imagen. Probá con otra (JPG o PNG).';
+  }
+});
+
+$('f').addEventListener('submit', async e => {
+  e.preventDefault();
+  const plan = (document.querySelector('input[name=plan]:checked') || {}).value;
+  const falta = [];
+  if (!plan) falta.push('el plan');
+  if (!$('nombre').value.trim()) falta.push('el nombre del negocio');
+  if (!$('rubro').value.trim()) falta.push('a qué se dedica');
+  if (!logo) falta.push('el logo');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($('email').value.trim())) falta.push('un email válido');
+  const emp = $('email_mp').value.trim();
+  if (emp && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emp)) falta.push('un email de Mercado Pago válido');
+  if (!$('acepto').checked) falta.push('aceptar las condiciones');
+  if (falta.length) { $('error').textContent = 'Falta: ' + falta.join(', ') + '.'; return; }
+
+  $('enviar').disabled = true; $('error').textContent = ''; $('enviar').textContent = 'Preparando el pago…';
+  try {
+    const r = await api('alta', {
+      plan, email: $('email').value.trim(), email_mp: emp, logo, logo_mime: 'image/png',
+      datos: {nombre: $('nombre').value, rubro: $('rubro').value, descripcion: $('descripcion').value, tono: $('tono').value,
+              telefono: $('telefono').value, instagram: $('instagram').value, direccion: $('direccion').value, horario: $('horario').value},
+    });
+    if (!r.ok || !r.url) throw new Error(r.error || 'No se pudo preparar el pago');
+    location.href = r.url;
+  } catch (err) {
+    $('error').textContent = err.message;
+    $('enviar').disabled = false; $('enviar').textContent = 'Ir a pagar con Mercado Pago';
+  }
+});
+</script>
+</body>
+</html>

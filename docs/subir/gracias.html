@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0E4459">
+<title>Multiredes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E6F0F2;color:#0B1630;font:16px/1.55 Inter,system-ui,sans-serif}
+.app{max-width:520px;margin:0 auto;background:#fff;min-height:100vh;padding:56px 24px;text-align:center}
+h1{font-family:Manrope,system-ui,sans-serif;font-weight:800;font-size:28px;margin:0 0 12px}
+p{color:#3d5662}
+.big{font-size:56px;margin-bottom:8px}
+a{color:#0E4459;font-weight:600}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="big">🎉</div>
+  <h1>¡Gracias!</h1>
+  <p>Apenas Mercado Pago confirme el pago, te llega un mail con tu link personal para subir videos y fotos. Suele tardar unos minutos.</p>
+  <p>Si no lo ves, revisá en Spam o Promociones.</p>
+</div>
+<script>
+// Mercado Pago vuelve acá con el estado del pago en la dirección
+const q = new URLSearchParams(location.search);
+const st = q.get('status') || q.get('collection_status') || '';
+if (['rejected', 'failure', 'null'].includes(st)) {
+  document.getElementById('app').innerHTML = '<div class="big">😕</div><h1>El pago no se completó</h1>' +
+    '<p>No se cobró nada. Podés <a href="alta.html">volver a intentarlo</a> con otro medio de pago.</p>';
+} else if (st === 'pending' || st === 'in_process') {
+  document.getElementById('app').innerHTML = '<div class="big">⏳</div><h1>Pago en proceso</h1>' +
+    '<p>Mercado Pago todavía lo está revisando. Cuando se apruebe, te llega el mail con tu link.</p>';
+}
+</script>
+</body>
+</html>
