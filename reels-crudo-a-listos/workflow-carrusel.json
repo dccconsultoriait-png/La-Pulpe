@@ -1,0 +1,948 @@
+{
+  "name": "La Pulpe - Carrusel de fotos v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "30fe1409-238f-4d05-8fce-78a0dca3ca5d",
+      "name": "Cada 10 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "97e5074c-0974-4553-b6ae-88aed2978d9d",
+      "name": "Probar a mano",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === CONFIG CARRUSEL LA PULPE: carpetas y ajustes ===\n// Los datos del negocio (teléfono, Instagram, colores) están en Recursos/datos-negocio.json.\nconst CONFIG = {\n  carpeta_crudo_id: 'COMPLETAR_ID_CARPETA_CRUDO',\n  carpeta_feed_id: 'COMPLETAR_ID_CARPETA_LISTOS_FEED',\n  carpeta_edicion_id: 'COMPLETAR_ID_CARPETA_EDICION',\n  datos_negocio_id: 'COMPLETAR_ID_ARCHIVO_DATOS_NEGOCIO_JSON',\n  logo_id: 'COMPLETAR_ID_ARCHIVO_LOGO_PNG',\n  fuente_id: 'COMPLETAR_ID_ARCHIVO_FUENTE_TTF',\n  email_aviso: 'COMPLETAR@mail.com',\n  espera_min: 3,      // espera a que pasen 3 min sin fotos nuevas (así ya subieron todas)\n  max_fotos: 20,      // Instagram admite hasta 20 por carrusel\n  max_mb: 40,         // fotos más pesadas se ignoran\n};\nconst lote = Date.now().toString(36);\nreturn [{ json: {\n  ...CONFIG,\n  lote,\n  dir: `/home/node/.n8n-files/lapulpe/carrusel-${lote}`,\n  fecha: new Date().toISOString().slice(0, 10),\n}}];"
+      },
+      "id": "f639d15e-51aa-4351-9da0-f7ff318ed1b2",
+      "name": "Config Carrusel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "searchMethod": "query",
+        "queryString": "={{ \"'\" + $('Config Carrusel').first().json.carpeta_crudo_id + \"' in parents and mimeType contains 'image/' and trashed = false\" }}",
+        "returnAll": true,
+        "filter": {},
+        "options": {
+          "fields": [
+            "*"
+          ]
+        }
+      },
+      "id": "b7b2ddb4-405e-450e-8819-d5b308d168fe",
+      "name": "Buscar fotos en Crudo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agrupa las fotos de Crudo en carruseles y elige uno que ya terminó de subirse.\n// Fotos llamadas \"... carrusel-01.jpg\", \"... carrusel-02.jpg\" van juntas (mismo comienzo de nombre).\n// Fotos sueltas (sin \"carrusel-NN\") se juntan en un solo carrusel, por orden de subida.\nconst cfg = $('Config Carrusel').first().json;\nconst ahora = Date.now();\nconst grupos = {};\nfor (const it of $input.all()) {\n  const f = it.json;\n  if (!f.id || !String(f.mimeType || '').startsWith('image/')) continue;\n  if (Number(f.size || 0) > cfg.max_mb * 1024 * 1024) continue;\n  const m = String(f.name || '').match(/^(.*?)[\\s_-]*carrusel[\\s_-]*(\\d+)/i);\n  const clave = m ? m[1].trim() || 'carrusel' : '(fotos sueltas)';\n  const creado = Date.parse(f.createdTime || f.modifiedTime || '') || ahora;\n  (grupos[clave] = grupos[clave] || []).push({\n    id: f.id, nombre: f.name, mime: f.mimeType, creado,\n    orden: m ? Number(m[2]) : creado,\n    descripcion: String(f.description || '').trim(),\n  });\n}\nconst listos = Object.entries(grupos)\n  .map(([clave, fotos]) => ({ clave, fotos, ultimo: Math.max(...fotos.map(x => x.creado)), primero: Math.min(...fotos.map(x => x.creado)) }))\n  .filter(g => ahora - g.ultimo >= cfg.espera_min * 60 * 1000)   // nadie subió nada en los últimos minutos\n  .sort((a, b) => a.primero - b.primero);\nif (!listos.length) return [];                                      // nada listo: el flujo termina acá sin error\nconst g = listos[0];\nconst fotos = g.fotos.sort((a, b) => a.orden - b.orden || a.creado - b.creado).slice(0, cfg.max_fotos);\nconst descripcion = fotos.map(x => x.descripcion).find(Boolean) || '';\nreturn [{ json: { grupo: g.clave, total: fotos.length, descripcion, fotos } }];"
+      },
+      "id": "e251aa15-1980-4066-934b-b77b9f26458a",
+      "name": "Elegir carrusel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=mkdir -p \"{{ $('Config Carrusel').first().json.dir }}\""
+      },
+      "id": "7c0b43f7-c11c-4906-9ff3-25ddce5c070f",
+      "name": "Preparar carpeta de trabajo",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config Carrusel').first().json.datos_negocio_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "fc8b88dd-b12a-45c8-9074-d02cdce65f5f",
+      "name": "Bajar datos del negocio",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Datos del negocio: se leen de datos-negocio.json (Drive) en cada video ===\n// Para cambiar teléfono, Instagram, hashtags, etc., se edita ese archivo, no n8n.\nconst salida = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  let d;\n  try { d = JSON.parse(buf.toString('utf8').replace(/^﻿/, '')); }\n  catch (e) { throw new Error('datos-negocio.json tiene un error de formato (revisá comas y comillas): ' + e.message); }\n  if (!d.nombre) throw new Error('Falta \"nombre\" en datos-negocio.json');\n  d.hashtags_base = Array.isArray(d.hashtags_base) ? d.hashtags_base : [];\n  // Pie fijo del caption: lo agregamos nosotros, no Claude, para que el teléfono nunca salga mal\n  d.pie_caption = [\n    d.telefono_reservas ? `📞 Reservas: ${d.telefono_reservas}` : '',\n    d.direccion ? `📍 ${d.direccion}` : '',\n    d.horario ? `🕛 ${d.horario}` : '',\n  ].filter(Boolean).join('\\n');\n  const hex = (c, def) => (/^#?[0-9a-fA-F]{6}$/.test(String(c || '')) ? String(c).replace('#', '') : def);\n  d.ff_marco = '0x' + hex(d.color_marco, 'F3EBDD');   // formato de color para FFmpeg\n  d.ff_texto = '0x' + hex(d.color_texto, '1A1A1A');\n  salida.push({ json: d, pairedItem: { item: i } });\n}\nreturn salida;"
+      },
+      "id": "60eeec70-7fbe-408d-b084-654ff12fd7e5",
+      "name": "Datos del negocio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config Carrusel').first().json.logo_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "9cd711ee-2526-4e91-8c75-fc0daf5e937b",
+      "name": "Bajar logo",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config Carrusel').first().json.dir }}/logo.png",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "4a25f258-f6cb-4b7d-a910-d670e9edad0c",
+      "name": "Guardar logo en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Config Carrusel').first().json.fuente_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "3db0e2fb-544a-4568-bc3b-f2c956b171d5",
+      "name": "Bajar fuente",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Config Carrusel').first().json.dir }}/fuente.ttf",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "3388bfa9-79c6-4f4f-8435-3d50f30d5f0c",
+      "name": "Guardar fuente en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Una fila por foto, con los textos de la banda de abajo de cada placa\nconst cfg = $('Config Carrusel').first().json;\nconst d = $('Datos del negocio').first().json;\nconst sel = $('Elegir carrusel').first().json;\nconst b64 = t => Buffer.from(String(t || ''), 'utf8').toString('base64');\nreturn sel.fotos.map((f, i) => {\n  const n = i + 1, nn = String(n).padStart(2, '0');\n  const ultima = n === sel.total && sel.total > 1;\n  const ext = f.mime === 'image/png' ? 'png' : (f.mime === 'image/webp' ? 'webp' : 'jpg');\n  return { json: {\n    file_id: f.id, nombre_original: f.nombre, n, total: sel.total,\n    ruta: `${cfg.dir}/foto-${nn}.${ext}`,\n    placa: `${cfg.dir}/placa-${nn}.jpg`,\n    mini: `${cfg.dir}/mini-${nn}.jpg`,\n    // última placa: reservas; las demás: Instagram\n    linea1_b64: b64(ultima ? (d.historia_linea_1 || ('RESERVAS ' + (d.telefono_reservas || ''))) : (d.instagram || d.nombre)),\n    linea2_b64: b64(d.horario || ''),\n    contador_b64: b64(`${n}/${sel.total}`),\n    l1_size: ultima ? 34 : 30,\n  }};\n});"
+      },
+      "id": "16686d00-0b30-45cb-84ea-ea68204ed3f6",
+      "name": "Una foto por item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.file_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "b46917e4-b4e3-451f-972f-06db0745ecb3",
+      "name": "Bajar foto",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2640,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $('Una foto por item').item.json.ruta }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "9659e099-6cb2-4315-b7ed-6317d2c363c8",
+      "name": "Guardar foto en disco",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "executeOnce": false,
+        "command": "={{ (() => {\n  // PLACA 4:5 (1080x1350): la foto entera (con fondo desenfocado de la misma foto), marco crema,\n  // banda de abajo con logo, Instagram/horario (o RESERVAS en la última) y el número de placa.\n  const c = $('Config Carrusel').first().json;\n  const d = $('Datos del negocio').first().json;\n  const f = $('Una foto por item').item.json;\n  const nn = String(f.n).padStart(2, '0');\n  const W = 1000, H = 1170;\n  const fill = `split[a][b];[a]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.06[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1`;\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none:fontcolor=${d.ff_texto}`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  const fc = `[0:v]${fill}[foto];[2:v][foto]overlay=40:40[a];[1:v]scale=-1:100,colorkey=0xFFFFFF:0.12:0.08[lg];[a][lg]overlay=40:1228[b];` +\n    `[b]drawtext=${font}:textfile=${c.dir}/l1-${nn}.txt:fontsize=${f.l1_size}:x=170:y=1240,` +\n    `drawtext=${font}:textfile=${c.dir}/l2-${nn}.txt:fontsize=24:x=170:y=1288,` +\n    `drawtext=${font}:textfile=${c.dir}/n-${nn}.txt:fontsize=30:x=w-text_w-44:y=1262[out]`;\n  return txt(`l1-${nn}`, f.linea1_b64) + txt(`l2-${nn}`, f.linea2_b64) + txt(`n-${nn}`, f.contador_b64) +\n    `ffmpeg -hide_banner -loglevel error -y -i \"${f.ruta}\" -i \"${c.dir}/logo.png\" -f lavfi -i color=c=${d.ff_marco}:s=1080x1350:d=1` +\n    ` -filter_complex \"${fc}\" -map \"[out]\" -frames:v 1 -q:v 2 \"${f.placa}\"` +\n    ` && ffmpeg -hide_banner -loglevel error -y -i \"${f.ruta}\" -vf \"scale='min(768,iw)':-2\" -frames:v 1 -q:v 5 \"${f.mini}\"`;\n})() }}"
+      },
+      "id": "6679c216-0590-43ef-addb-365f0b1a30f0",
+      "name": "Armar placa (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $('Una foto por item').item.json.mini }}",
+        "options": {}
+      },
+      "id": "5d86bbd0-15fc-4902-b48b-788ab5979018",
+      "name": "Leer miniaturas",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma UN pedido a Claude con todas las fotos (miniaturas) para escribir título y caption.\nconst d = $('Datos del negocio').first().json;\nconst sel = $('Elegir carrusel').first().json;\nconst items = $input.all();\nconst contenido = [];\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  contenido.push({ type: 'text', text: `Foto ${i + 1} de ${items.length}:` });\n  contenido.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') } });\n}\ncontenido.push({ type: 'text', text:\n  'Estas fotos van juntas en un carrusel de Instagram, en este orden.' +\n  (sel.descripcion ? `\\nNota de quien las subió: \"${sel.descripcion}\"` : '') +\n  '\\nEscribí el título, el texto de portada, el caption y los hashtags.' });\nconst pedido = {\n  model: 'claude-opus-5-5',\n  max_tokens: 4000,\n  fallbacks: 'default',\n  output_config: {\n    effort: 'low',\n    format: { type: 'json_schema', schema: {\n      type: 'object',\n      properties: {\n        titulo: { type: 'string' },\n        gancho: { type: 'string' },\n        caption: { type: 'string' },\n        hashtags: { type: 'array', items: { type: 'string' } },\n      },\n      required: ['titulo', 'gancho', 'caption', 'hashtags'],\n      additionalProperties: false,\n    }},\n  },\n  system: `Sos el community manager de ${d.nombre} (${d.descripcion}; rubro: ${d.rubro}; abre: ${d.horario}). Tono: ${d.tono}.\\n` +\n    'Mirás las fotos de un carrusel de Instagram (pueden traer textos escritos encima: usalos) y escribís:\\n' +\n    '- titulo: corto (máx. 8 palabras), para nombrar la carpeta.\\n' +\n    '- gancho: texto para la portada del carrusel, máx. 6 palabras, que invite a deslizar.\\n' +\n    '- caption: 2 a 4 oraciones para Instagram, con un llamado a la acción al final. Podés usar 1 o 2 emojis.\\n' +\n    '- hashtags: 3 a 6 hashtags relevantes en español, con #.\\n' +\n    'No escribas teléfono, dirección ni horario en el caption: se agregan solos al final. ' +\n    'REGLAS: no inventes precios, platos, promociones ni datos que no se vean en las fotos o en la nota.',\n  messages: [{ role: 'user', content: contenido }],\n};\nreturn [{ json: { pedido } }];"
+      },
+      "id": "6bf85eb0-7818-4bc7-9bac-228e697c2ef8",
+      "name": "Pedido a Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2026-10-21"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "server-side-fallback-2026-07-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.pedido) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "83d4425b-bea5-46df-b21a-9dc0ae52c169",
+      "name": "Claude: caption del carrusel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3740,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Anthropic API (x-api-key)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nif (r.stop_reason === 'refusal') throw new Error('Claude no quiso escribir este caption: revisá las fotos a mano');\nconst bloque = (r.content || []).find(b => b.type === 'text');\nif (!bloque) throw new Error('Claude no devolvió texto');\nconst t = JSON.parse(bloque.text);\nconst cfg = $('Config Carrusel').first().json;\nconst datos = $('Datos del negocio').first().json;\nconst hashtags = [...new Set([...(datos.hashtags_base || []), ...(t.hashtags || [])])].join(' ');\nconst limpio = String(t.titulo || 'carrusel').replace(/[\\\\/:*?\"<>|]/g, '').slice(0, 60).trim();\nconst palabras = String(t.gancho || t.titulo || datos.nombre).toUpperCase().split(/\\s+/).filter(Boolean);\nconst renglones = [];\nfor (const p of palabras) {\n  const ult = renglones[renglones.length - 1];\n  if (ult !== undefined && (ult + ' ' + p).length <= 18) renglones[renglones.length - 1] = ult + ' ' + p;\n  else renglones.push(p);\n}\nconst b64 = s => Buffer.from(String(s || ''), 'utf8').toString('base64');\nreturn [{ json: {\n  titulo: t.titulo,\n  gancho: t.gancho,\n  caption: [String(t.caption || '').trim(), datos.pie_caption].filter(Boolean).join('\\n\\n'),\n  hashtags,\n  nombre_carpeta: `${cfg.fecha} - Carrusel - ${limpio}`,\n  tapa_b64: b64(renglones.slice(0, 3).join('\\n')),\n  tapa_pie_b64: b64([datos.instagram, datos.telefono_reservas ? 'Reservas ' + datos.telefono_reservas : ''].filter(Boolean).join('  ·  ')),\n}}];"
+      },
+      "id": "62e238a4-4330-46fb-9938-1beb1665f77b",
+      "name": "Leer respuesta de Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "={{ (() => {\n  // TAPA (placa 1): la primera foto con el título grande y el logo, igual que la portada de los reels\n  const c = $('Config Carrusel').first().json;\n  const d = $('Datos del negocio').first().json;\n  const r = $('Leer respuesta de Claude').first().json;\n  const f = $('Una foto por item').first().json;\n  const W = 1000, H = 1000;\n  const fill = `split[a][b];[a]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=24:2,eq=brightness=-0.06[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1`;\n  const font = `fontfile=${c.dir}/fuente.ttf:expansion=none:fontcolor=${d.ff_texto}`;\n  const txt = (nombre, b64) => `printf '%s' '${b64}' | base64 -d > \"${c.dir}/${nombre}.txt\" && `;\n  const fc = `[0:v]${fill}[foto];[1:v]scale=220:-1,colorkey=0xFFFFFF:0.12:0.08[lg];[2:v][foto]overlay=40:40[a];[a][lg]overlay=W-w-40:1062[b];` +\n    `[b]drawtext=${font}:textfile=${c.dir}/tapa.txt:fontsize=56:line_spacing=8:x=40:y=1072,` +\n    `drawtext=${font}:textfile=${c.dir}/tapa_pie.txt:fontsize=24:x=40:y=1304[out]`;\n  return txt('tapa', r.tapa_b64) + txt('tapa_pie', r.tapa_pie_b64) +\n    `ffmpeg -hide_banner -loglevel error -y -i \"${f.ruta}\" -i \"${c.dir}/logo.png\" -f lavfi -i color=c=${d.ff_marco}:s=1080x1350:d=1` +\n    ` -filter_complex \"${fc}\" -map \"[out]\" -frames:v 1 -q:v 2 \"${f.placa}\"`;\n})() }}"
+      },
+      "id": "ff4d35b1-739d-4ddd-815a-9ef2b5592d27",
+      "name": "Hacer tapa (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        4180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ $('Leer respuesta de Claude').first().json.nombre_carpeta }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config Carrusel').first().json.carpeta_feed_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "7050d697-3fa6-4321-b465-efdefef3041b",
+      "name": "Crear carpeta en Feed",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4400,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Una foto por item').all().map(it => ({ json: {\n  placa: it.json.placa,\n  nombre: `${String(it.json.n).padStart(2, '0')}.jpg`,\n}}));"
+      },
+      "id": "ca8e59bd-cdb2-4156-83fb-a75af43e84d2",
+      "name": "Una placa por item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.placa }}",
+        "options": {}
+      },
+      "id": "cb62ef96-af9d-402b-8a13-6d0af5d13cd6",
+      "name": "Leer placa",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        4840,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $('Una placa por item').item.json.nombre }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Crear carpeta en Feed').first().json.id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "28857723-1b72-4372-8b31-0788bf5a71fd",
+      "name": "Subir placa",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5060,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $('Leer respuesta de Claude').first().json;\nconst sel = $('Elegir carrusel').first().json;\nconst txt = [\n  `TÍTULO: ${c.titulo}`,\n  '',\n  'CAPTION (copiar y pegar):',\n  c.caption,\n  '',\n  c.hashtags,\n  '',\n  `Subí las ${sel.total} placas en orden (01, 02, ...) como un solo carrusel.`,\n  `Fotos originales: ${sel.fotos.map(f => f.nombre).join(', ')}`,\n].join('\\n');\nreturn [{ json: {}, binary: { data: {\n  data: Buffer.from(txt, 'utf8').toString('base64'),\n  mimeType: 'text/plain',\n  fileName: '00 - caption.txt',\n}}}];"
+      },
+      "id": "e4ef4d42-613e-45aa-ac45-5f886459c2bc",
+      "name": "Armar texto para publicar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "00 - caption.txt",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Crear carpeta en Feed').first().json.id }}",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "89b43666-0671-4cd3-bbcb-0baf76f31195",
+      "name": "Subir texto",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5500,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Elegir carrusel').first().json.fotos.map(f => ({ json: { file_id: f.id } }));"
+      },
+      "id": "2344160a-9855-4d1f-85ac-488fe6c668f1",
+      "name": "Fotos a mover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.file_id }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('Config Carrusel').first().json.carpeta_edicion_id }}",
+          "mode": "id"
+        }
+      },
+      "id": "74dc44dc-7488-4e72-ac25-b23b86deb510",
+      "name": "Mover fotos a Edicion",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5940,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "",
+          "name": "Google Drive (La Pulpe)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Config Carrusel').first().json.email_aviso }}",
+        "subject": "=🖼️ Carrusel listo: {{ $('Leer respuesta de Claude').first().json.titulo }}",
+        "emailType": "text",
+        "message": "=¡Hola! Ya está listo tu carrusel de {{ $('Elegir carrusel').first().json.total }} fotos en Listos/Feed.\n\nCarpeta: https://drive.google.com/drive/folders/{{ $('Crear carpeta en Feed').first().json.id }}\n\nCaption para pegar:\n{{ $('Leer respuesta de Claude').first().json.caption }}\n\n{{ $('Leer respuesta de Claude').first().json.hashtags }}\n\nSubí las placas en orden (01, 02, ...) como un solo carrusel. Revisalo antes de publicar.\n— DCC Consultoría IT",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "61101187-67c4-4e62-ac26-399cf682a35e",
+      "name": "Avisar por mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        6160,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail DCC"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "command": "=rm -rf \"{{ $('Config Carrusel').first().json.dir }}\""
+      },
+      "id": "30823741-e802-4aea-b1ed-cce65ce6d5e5",
+      "name": "Limpiar archivos temporales",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        6380,
+        300
+      ],
+      "executeOnce": true
+    }
+  ],
+  "connections": {
+    "Cada 10 minutos": {
+      "main": [
+        [
+          {
+            "node": "Config Carrusel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Probar a mano": {
+      "main": [
+        [
+          {
+            "node": "Config Carrusel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config Carrusel": {
+      "main": [
+        [
+          {
+            "node": "Buscar fotos en Crudo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar fotos en Crudo": {
+      "main": [
+        [
+          {
+            "node": "Elegir carrusel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elegir carrusel": {
+      "main": [
+        [
+          {
+            "node": "Preparar carpeta de trabajo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar carpeta de trabajo": {
+      "main": [
+        [
+          {
+            "node": "Bajar datos del negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Datos del negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del negocio": {
+      "main": [
+        [
+          {
+            "node": "Bajar logo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar logo": {
+      "main": [
+        [
+          {
+            "node": "Guardar logo en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar logo en disco": {
+      "main": [
+        [
+          {
+            "node": "Bajar fuente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar fuente": {
+      "main": [
+        [
+          {
+            "node": "Guardar fuente en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar fuente en disco": {
+      "main": [
+        [
+          {
+            "node": "Una foto por item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Una foto por item": {
+      "main": [
+        [
+          {
+            "node": "Bajar foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bajar foto": {
+      "main": [
+        [
+          {
+            "node": "Guardar foto en disco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar foto en disco": {
+      "main": [
+        [
+          {
+            "node": "Armar placa (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar placa (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Leer miniaturas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer miniaturas": {
+      "main": [
+        [
+          {
+            "node": "Pedido a Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedido a Claude": {
+      "main": [
+        [
+          {
+            "node": "Claude: caption del carrusel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: caption del carrusel": {
+      "main": [
+        [
+          {
+            "node": "Leer respuesta de Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer respuesta de Claude": {
+      "main": [
+        [
+          {
+            "node": "Hacer tapa (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hacer tapa (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Crear carpeta en Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear carpeta en Feed": {
+      "main": [
+        [
+          {
+            "node": "Una placa por item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Una placa por item": {
+      "main": [
+        [
+          {
+            "node": "Leer placa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer placa": {
+      "main": [
+        [
+          {
+            "node": "Subir placa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir placa": {
+      "main": [
+        [
+          {
+            "node": "Armar texto para publicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar texto para publicar": {
+      "main": [
+        [
+          {
+            "node": "Subir texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir texto": {
+      "main": [
+        [
+          {
+            "node": "Fotos a mover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fotos a mover": {
+      "main": [
+        [
+          {
+            "node": "Mover fotos a Edicion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mover fotos a Edicion": {
+      "main": [
+        [
+          {
+            "node": "Avisar por mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar por mail": {
+      "main": [
+        [
+          {
+            "node": "Limpiar archivos temporales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

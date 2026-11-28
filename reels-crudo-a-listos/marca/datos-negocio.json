@@ -1,0 +1,24 @@
+{
+  "nombre": "La Pulpe",
+  "descripcion": "Pulpería, Monumento Histórico y Cultural de la Ciudad de Los Hornos, partido de La Plata, en pie desde 1878",
+  "lema": "Asado, cultura, vino, historia",
+  "direccion": "Av. 161 esq. Av. 78, Los Hornos, La Plata",
+  "horario": "Domingos al mediodía",
+  "telefono_reservas": "11 6683-2645",
+  "instagram": "@paisanosyalmacenes",
+  "rubro": "pulpería histórica: comida casera, argentinidad, tradición, fuego, asados, carne y vinos; música en vivo (tango, milonga); reservas para el domingo",
+  "tono": "cálido, criollo y orgulloso de la tradición; español rioplatense simple; evocar el fuego, la mesa larga y el domingo en familia, sin exagerar ni sonar a publicidad",
+  "hashtags_base": [
+    "#LaPulpe",
+    "#Pulpería",
+    "#LosHornos",
+    "#ComidaCasera"
+  ],
+  "logo_en_reel": true,
+  "logo_ancho_px": 200,
+  "logo_opacidad": 0.9,
+  "color_marco": "#F3EBDD",
+  "color_texto": "#1A1A1A",
+  "historia_linea_1": "RESERVAS 11 6683-2645",
+  "historia_linea_2": "Domingos al mediodía · @paisanosyalmacenes"
+}
