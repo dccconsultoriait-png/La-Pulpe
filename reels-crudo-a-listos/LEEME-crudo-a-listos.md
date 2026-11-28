@@ -28,6 +28,8 @@ v1.2, 26 nov 2026: de cada video crudo salen 3 piezas con el mismo marco de marc
 | `marca/datos-negocio.json` | Nombre, descripción, teléfono, dirección, horario, Instagram, hashtags, colores de marca, textos de la historia y ajustes del logo. **Va a Drive** (paso 3) |
 | `marca/fuente.ttf` | Tipografía de los textos y subtítulos (DejaVu Serif Bold, licencia libre en `marca/fuente-LICENCIA.txt`). **Va a Drive** (paso 3) |
 | `marca/lapulpe.png` | Logo de La Pulpe. **Va a Drive** (paso 3) |
+| `workflow-carrusel.json` | Flujo aparte para **carruseles de fotos** (31 nodos, ver abajo) |
+| `ejemplo-carrusel.jpg` | Cómo quedan las placas del carrusel |
 | `Dockerfile` | Agrega FFmpeg a tu n8n de Hostinger |
 | `ejemplo-subtitulos.png` | Cómo quedan los subtítulos (prueba con video de barras) |
 | `ejemplo-reel-historia-feed.png` | Cómo quedan reel, historia y portada (prueba con un video de colores) |
@@ -113,6 +115,22 @@ El ID de cada carpeta es lo que sigue a `/folders/` en la URL. Subí a `Recursos
 Recomendado: en Settings del flujo, poné un **Error Workflow** que te mande un mail a vos si algo falla, así no se entera primero el cliente.
 
 ---
+
+## Carrusel de fotos (flujo aparte: `workflow-carrusel.json`)
+
+**Qué hace:** cada 10 minutos mira las **fotos** de `Crudo` (los videos los sigue tomando el flujo de reels). Junta las que se llaman igual hasta `carrusel-01`, `carrusel-02`… (o, si no tienen ese nombre, todas las fotos sueltas) y, cuando pasaron 3 minutos sin fotos nuevas, arma el carrusel:
+
+1. Cada foto pasa a una **placa 4:5 (1080×1350)** con el marco crema: la foto entera (los costados se rellenan con la misma foto desenfocada, así no se cortan los textos escritos encima), y abajo el logo, @paisanosyalmacenes y el número (2/9). La última placa dice "RESERVAS 11 6683-2645".
+2. Claude mira todas las fotos (y la descripción del archivo en Drive, si tiene) y escribe título, texto de tapa, caption y hashtags. El teléfono, la dirección y el horario se agregan solos.
+3. La **placa 01 es la tapa**: primera foto con el título grande y el logo, igual que la portada de los reels.
+4. En `Listos/Feed` crea una carpeta `AAAA-MM-DD - Carrusel - <título>` con `01.jpg`… y `00 - caption.txt`.
+5. Mueve las fotos originales a `Edicion` y manda el mail de aviso.
+
+**Para usarlo:** Import from file › `workflow-carrusel.json`; en **Config Carrusel** completá los IDs (los mismos de Crudo, Listos/Feed, Edicion y Recursos) y el mail; asigná las credenciales de Google Drive, Anthropic y Gmail (las mismas del flujo de reels); probalo con **Execute workflow** y después activalo. En **Probar a mano** no hace falta esperar a la hora.
+
+**Claude:** usa `claude-opus-5-5` con `fallbacks: "default"` (encabezado `anthropic-beta: server-side-fallback-2026-07-01`): si el filtro de seguridad rechaza un pedido, la API lo reintenta sola con otro modelo. Si tu cuenta devolviera error 400 por eso, borrá ese encabezado y la línea `fallbacks` del nodo "Pedido a Claude".
+
+Probado en un n8n 2.49.7 de prueba con fotos reales de La Pulpe: corre de punta a punta (Drive, Claude y Gmail simulados). ⚠️ Fotos de celular giradas solo por EXIF podrían salir de costado: si pasa, avisame.
 
 ## Costos por reel (estimados, ⚠️ no medidos)
 
